@@ -6,12 +6,75 @@ use std::path::Path;
 
 use serde_json::Value;
 use touchpad_core::{
-    capability_matrix, RuntimeConfig, RuntimeConfigV1, ServiceLifecycle,
-    CURRENT_RUNTIME_CONFIG_VERSION,
+    RuntimeConfig, RuntimeConfigV1, ServiceLifecycle, CURRENT_RUNTIME_CONFIG_VERSION,
 };
 
 use crate::env::CommandEnv;
 use crate::exit::CommandFailure;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CapabilityId {
+    WaylandPortalLibei,
+    X11Adapter,
+    UinputAdapter,
+    ContinuousGestures,
+    KdeActions,
+    Pressure,
+    Haptics,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CapabilityStatus {
+    ExperimentalUnqualified,
+    SemanticOnly,
+    SeparateQualification,
+    Unsupported,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CapabilityEntry {
+    id: CapabilityId,
+    status: CapabilityStatus,
+    detail: &'static str,
+}
+
+const CAPABILITY_MATRIX: &[CapabilityEntry] = &[
+    CapabilityEntry {
+        id: CapabilityId::WaylandPortalLibei,
+        status: CapabilityStatus::ExperimentalUnqualified,
+        detail: "implemented; requires M6/M10-M16 live acceptance evidence",
+    },
+    CapabilityEntry {
+        id: CapabilityId::X11Adapter,
+        status: CapabilityStatus::SeparateQualification,
+        detail: "no silent fallback; build and qualify an explicit X11 adapter",
+    },
+    CapabilityEntry {
+        id: CapabilityId::UinputAdapter,
+        status: CapabilityStatus::SeparateQualification,
+        detail: "no silent fallback; build and qualify an explicit uinput adapter",
+    },
+    CapabilityEntry {
+        id: CapabilityId::ContinuousGestures,
+        status: CapabilityStatus::SemanticOnly,
+        detail: "core recognition exists; current portal/libei sink rejects the semantic event",
+    },
+    CapabilityEntry {
+        id: CapabilityId::KdeActions,
+        status: CapabilityStatus::ExperimentalUnqualified,
+        detail: "KDE Plasma KGlobalAccel transport is implemented for workspace next/previous, overview, present windows, show desktop and application launcher; live acceptance remains required",
+    },
+    CapabilityEntry {
+        id: CapabilityId::Pressure,
+        status: CapabilityStatus::Unsupported,
+        detail: "current device/profile does not provide a qualified pressure feature",
+    },
+    CapabilityEntry {
+        id: CapabilityId::Haptics,
+        status: CapabilityStatus::Unsupported,
+        detail: "no qualified haptic hardware/output interface is present",
+    },
+];
 
 /// Reads a JSON config, rejects unknown/future versions, and explicitly
 /// migrates v1 to the current schema. No hardware or desktop side effect is
@@ -93,7 +156,7 @@ pub fn run_preflight(env: &mut CommandEnv<'_>, input: &Path) -> Result<(), Comma
         lifecycle.state()
     )
     .map_err(|error| CommandFailure::Unexpected(format!("could not write output: {error}")))?;
-    for entry in capability_matrix() {
+    for entry in CAPABILITY_MATRIX {
         writeln!(
             env.out,
             "capability={:?} status={:?} detail={}",
@@ -109,6 +172,21 @@ mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
     use touchpad_core::{OutputAdapter, ReconnectPolicy};
+
+    #[test]
+    fn capability_matrix_is_application_owned_and_explicit() {
+        assert!(CAPABILITY_MATRIX.iter().any(|entry| {
+            entry.id == CapabilityId::KdeActions
+                && entry.status == CapabilityStatus::ExperimentalUnqualified
+        }));
+        assert!(CAPABILITY_MATRIX.iter().any(|entry| {
+            entry.id == CapabilityId::X11Adapter
+                && entry.status == CapabilityStatus::SeparateQualification
+        }));
+        assert!(CAPABILITY_MATRIX.iter().any(|entry| {
+            entry.id == CapabilityId::Pressure && entry.status == CapabilityStatus::Unsupported
+        }));
+    }
 
     fn temp_json(contents: &str) -> std::path::PathBuf {
         let nonce = SystemTime::now()

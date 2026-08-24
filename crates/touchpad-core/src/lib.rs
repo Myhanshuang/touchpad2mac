@@ -94,10 +94,9 @@ pub use output::{
     MouseButton, OutputError, OutputEvent, OutputFrameError, OutputSink, RecordingSink,
 };
 pub use production::{
-    capability_matrix, CapabilityEntry, CapabilityId, CapabilityStatus, OutputAdapter,
-    ReconnectController, ReconnectDecision, ReconnectPolicy, ReconnectPolicyError, RuntimeConfig,
-    RuntimeConfigError, RuntimeConfigV1, ServiceLifecycle, ServiceState, ServiceTransitionError,
-    CURRENT_RUNTIME_CONFIG_VERSION,
+    OutputAdapter, ReconnectController, ReconnectDecision, ReconnectPolicy, ReconnectPolicyError,
+    RuntimeConfig, RuntimeConfigError, RuntimeConfigV1, ServiceLifecycle, ServiceState,
+    ServiceTransitionError, CURRENT_RUNTIME_CONFIG_VERSION,
 };
 pub use profile::{DeviceProfile, DeviceQuirk};
 pub use robustness::{

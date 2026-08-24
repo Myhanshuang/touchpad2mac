@@ -529,95 +529,6 @@ impl ServiceLifecycle {
     }
 }
 
-/// Capability/adapter rows reported by M16 preflight.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum CapabilityId {
-    /// Existing Wayland portal + libei output adapter.
-    WaylandPortalLibei,
-    /// Future X11 output/input adapter.
-    X11Adapter,
-    /// Future uinput output adapter.
-    UinputAdapter,
-    /// Continuous gesture semantic output from M14.
-    ContinuousGestures,
-    /// KDE semantic action transport from M15.
-    KdeActions,
-    /// Pressure-sensitive interactions.
-    Pressure,
-    /// Haptic output.
-    Haptics,
-}
-
-/// Qualification status for a capability row.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum CapabilityStatus {
-    /// Implemented but still requires the documented user-run live evidence.
-    ExperimentalUnqualified,
-    /// Exists only as a semantic/injected adapter boundary; no real transport
-    /// is enabled by the current stack.
-    SemanticOnly,
-    /// A future adapter must be built and independently qualified.
-    SeparateQualification,
-    /// Current hardware/output stack does not provide the capability.
-    Unsupported,
-}
-
-/// One immutable capability matrix entry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CapabilityEntry {
-    /// Capability/adapter identifier.
-    pub id: CapabilityId,
-    /// Current qualification status.
-    pub status: CapabilityStatus,
-    /// Human-readable boundary/evidence statement.
-    pub detail: &'static str,
-}
-
-/// Current conservative M16 capability matrix.
-#[must_use]
-pub const fn capability_matrix() -> &'static [CapabilityEntry] {
-    &[
-        CapabilityEntry {
-            id: CapabilityId::WaylandPortalLibei,
-            status: CapabilityStatus::ExperimentalUnqualified,
-            detail: "implemented; requires M6/M10-M16 live acceptance evidence",
-        },
-        CapabilityEntry {
-            id: CapabilityId::X11Adapter,
-            status: CapabilityStatus::SeparateQualification,
-            detail: "no silent fallback; build and qualify an explicit X11 adapter",
-        },
-        CapabilityEntry {
-            id: CapabilityId::UinputAdapter,
-            status: CapabilityStatus::SeparateQualification,
-            detail: "no silent fallback; build and qualify an explicit uinput adapter",
-        },
-        CapabilityEntry {
-            id: CapabilityId::ContinuousGestures,
-            status: CapabilityStatus::SemanticOnly,
-            detail:
-                "core recognition exists; current M6 portal/libei sink rejects the semantic event",
-        },
-        CapabilityEntry {
-            id: CapabilityId::KdeActions,
-            status: CapabilityStatus::ExperimentalUnqualified,
-            detail: "real M19 KDE Plasma KGlobalAccel transport is implemented for workspace next/previous, overview, present windows, show desktop and application launcher; live acceptance remains required",
-        },
-        CapabilityEntry {
-            id: CapabilityId::Pressure,
-            status: CapabilityStatus::Unsupported,
-            detail: "current device/profile does not provide a qualified pressure feature",
-        },
-        CapabilityEntry {
-            id: CapabilityId::Haptics,
-            status: CapabilityStatus::Unsupported,
-            detail: "no qualified haptic hardware/output interface is present",
-        },
-    ]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -718,23 +629,5 @@ mod tests {
         service.mark_stopped().unwrap();
         assert_eq!(service.state(), ServiceState::Stopped);
         assert!(service.transition(ServiceState::Running).is_err());
-    }
-
-    #[test]
-    fn capability_matrix_is_explicit_about_unqualified_and_unsupported_paths() {
-        let rows = capability_matrix();
-        assert!(rows.iter().any(|e| {
-            e.id == CapabilityId::X11Adapter && e.status == CapabilityStatus::SeparateQualification
-        }));
-        assert!(rows.iter().any(|e| {
-            e.id == CapabilityId::UinputAdapter
-                && e.status == CapabilityStatus::SeparateQualification
-        }));
-        assert!(rows.iter().any(|e| {
-            e.id == CapabilityId::Pressure && e.status == CapabilityStatus::Unsupported
-        }));
-        assert!(rows.iter().any(|e| {
-            e.id == CapabilityId::Haptics && e.status == CapabilityStatus::Unsupported
-        }));
     }
 }

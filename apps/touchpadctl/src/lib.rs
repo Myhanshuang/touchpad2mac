@@ -59,6 +59,7 @@
 
 pub mod args;
 pub mod cmd;
+pub mod desktop_backend;
 pub mod env;
 pub mod exit;
 pub mod output;

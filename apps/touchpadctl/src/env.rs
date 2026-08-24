@@ -14,6 +14,20 @@ use touchpad_linux::sys::{Fd, Sys, SysError};
 use touchpad_linux::{RawEventRecorder, RecorderError};
 use touchpad_trace::TraceHeader;
 
+/// Real desktop backend chosen by the application composition root.
+///
+/// This choice is independent from the core interaction profile: profiles
+/// define gesture semantics, while this enum selects how resolved semantic
+/// output is delivered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RealDesktopBackend {
+    /// XDG RemoteDesktop portal + libei pointer/button/scroll output only.
+    PortalLibei,
+    /// Portal/libei plus KDE KGlobalAccel handling for semantic desktop
+    /// actions.
+    KdeComposite,
+}
+
 /// Builds the record command's raw-event recorder (M5 review R2/R3 fault
 /// injection). The real binary uses [`touchpad_linux::TraceRecorder::create`];
 /// tests inject recorders that fail on flush/finish or record timeline
@@ -68,6 +82,9 @@ pub struct TakeoverSeams {
     pub sleeper: SleeperFn,
     /// The streaming output session factory (`None` = the real backend).
     pub streaming_factory: Option<StreamingOutputFactoryFn>,
+    /// Real desktop backend selected by the application composition root.
+    /// Ignored when `streaming_factory` is injected by a test.
+    pub real_desktop_backend: RealDesktopBackend,
 }
 
 impl TakeoverSeams {
@@ -82,6 +99,7 @@ impl TakeoverSeams {
             readiness: Rc::new(|_, _| Ok(false)),
             sleeper: Rc::new(|_| {}),
             streaming_factory: None,
+            real_desktop_backend: RealDesktopBackend::PortalLibei,
         }
     }
 }

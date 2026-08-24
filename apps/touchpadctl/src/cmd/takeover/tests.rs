@@ -320,6 +320,7 @@ impl Harness {
                 readiness,
                 sleeper,
                 streaming_factory: Some(factory),
+                real_desktop_backend: crate::env::RealDesktopBackend::PortalLibei,
             },
         }
     }

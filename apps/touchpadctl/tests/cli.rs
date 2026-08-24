@@ -101,6 +101,7 @@ fn takeover_env<'a>(
             readiness,
             sleeper,
             streaming_factory: Some(factory),
+            real_desktop_backend: touchpadctl::env::RealDesktopBackend::PortalLibei,
         },
     }
 }

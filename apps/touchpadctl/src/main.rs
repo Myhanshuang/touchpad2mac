@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use touchpad_core::Monotonic;
 use touchpad_linux::sys::{Fd, Sys};
-use touchpadctl::env::{ClockFn, ReadinessFn, TakeoverSeams};
+use touchpadctl::env::{ClockFn, ReadinessFn, RealDesktopBackend, TakeoverSeams};
 use touchpadctl::{parse_args, run_command, CommandEnv, ExitCode};
 
 fn main() {
@@ -121,9 +121,9 @@ fn real_sys() -> Rc<dyn Sys> {
 /// for the deadline, a `poll(2)`-based bounded-readiness seam on the session
 /// fd (through the `Sys` seam, whose Linux implementation lives inside
 /// `touchpad-linux`'s existing unsafe FFI boundary), and a real sleeper for
-/// the countdown. The production streaming backend is selected inside the
-/// takeover command after profile/settings validation so M19 can choose the
-/// KDE desktop-action composite while tests keep their injected factory.
+/// the countdown. The production desktop backend is selected here, at the
+/// application composition root, independently from the core interaction
+/// profile. Tests keep using their injected streaming factory.
 fn real_takeover_seams(sys: Rc<dyn Sys>) -> TakeoverSeams {
     let clock: ClockFn = {
         let epoch = std::time::Instant::now();
@@ -133,10 +133,20 @@ fn real_takeover_seams(sys: Rc<dyn Sys>) -> TakeoverSeams {
         })
     };
     let readiness: ReadinessFn = Rc::new(move |fd: Fd, timeout: Duration| sys.poll(fd, timeout));
+    let current_desktop = std::env::var("XDG_CURRENT_DESKTOP")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let real_desktop_backend =
+        if current_desktop.contains("kde") || std::env::var_os("KDE_FULL_SESSION").is_some() {
+            RealDesktopBackend::KdeComposite
+        } else {
+            RealDesktopBackend::PortalLibei
+        };
     TakeoverSeams {
         clock,
         readiness,
         sleeper: Rc::new(std::thread::sleep),
         streaming_factory: None,
+        real_desktop_backend,
     }
 }

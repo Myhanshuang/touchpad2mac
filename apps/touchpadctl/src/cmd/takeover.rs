@@ -107,10 +107,7 @@ use touchpad_core::{
     UserSettings,
 };
 use touchpad_desktop::capabilities::Capability;
-use touchpad_desktop::{
-    required_real_kde_actions, DesktopOutputError, RealKdeStreamingOutputFactory,
-    RealStreamingOutputFactory, StreamingOutput, StreamingOutputFactory,
-};
+use touchpad_desktop::{DesktopOutputError, StreamingOutput};
 use touchpad_linux::sys::{Fd, SysError};
 use touchpad_linux::{
     EvdevRuntime, OpenError, RawEventRecorder, RecorderError, RuntimeError, ShutdownReport,
@@ -118,6 +115,7 @@ use touchpad_linux::{
 };
 use touchpad_trace::TraceHeader;
 
+use crate::desktop_backend::RealDesktopPlan;
 use crate::env::CommandEnv;
 use crate::exit::CommandFailure;
 
@@ -617,25 +615,20 @@ pub(crate) fn run(
         Some(path) => Some(crate::cmd::settings::read_settings(path)?),
         None => None,
     };
-    // The production binary leaves `streaming_factory` unset so takeover can
-    // select the profile-specific real backend. For real M19, validate the
-    // complete gesture map before any device/output side effect: unsupported
-    // native passthrough or semantic actions are reported here rather than
-    // faulting after EVIOCGRAB.
-    let real_kde_required_actions = if env.takeover.streaming_factory.is_none()
-        && profile_name == touchpad_core::m19::M19_LIVE_V1_NAME
-    {
-        let settings = settings.as_ref().ok_or_else(|| {
-            CommandFailure::Unexpected(
-                "M19 real KDE preflight reached runtime without settings".to_string(),
-            )
-        })?;
+    // The production binary leaves `streaming_factory` unset. The desktop
+    // backend is selected by the application composition root and is never
+    // inferred from the core profile name. When KDE is selected, validate
+    // any loaded gesture map before device/output side effects so unsupported
+    // actions fail before EVIOCGRAB.
+    let real_desktop_plan = if env.takeover.streaming_factory.is_none() {
         Some(
-            required_real_kde_actions(&settings.gestures).map_err(|error| {
-                CommandFailure::OutputCapability(format!(
-                    "M19 settings are not executable on the real KDE output: {error}"
-                ))
-            })?,
+            RealDesktopPlan::build(env.takeover.real_desktop_backend, settings.as_ref()).map_err(
+                |error| {
+                    CommandFailure::OutputCapability(format!(
+                        "settings are not executable on the selected desktop output: {error}"
+                    ))
+                },
+            )?,
         )
     } else {
         None
@@ -678,24 +671,19 @@ pub(crate) fn run(
                 "could not create the streaming output session: {error}"
             ))
         })?,
-        None => match real_kde_required_actions.as_ref() {
-            Some(actions) => {
-                let mut factory = RealKdeStreamingOutputFactory::new(actions.clone());
-                factory.create().map_err(|error| {
-                    CommandFailure::OutputCapability(format!(
-                        "could not create the KDE streaming output session: {error}"
-                    ))
-                })?
-            }
-            None => {
-                let mut factory = RealStreamingOutputFactory;
-                factory.create().map_err(|error| {
-                    CommandFailure::OutputCapability(format!(
-                        "could not create the streaming output session: {error}"
-                    ))
-                })?
-            }
-        },
+        None => real_desktop_plan
+            .as_ref()
+            .ok_or_else(|| {
+                CommandFailure::Unexpected(
+                    "real desktop output selected without a backend plan".to_string(),
+                )
+            })?
+            .create_output()
+            .map_err(|error| {
+                CommandFailure::OutputCapability(format!(
+                    "could not create the selected desktop output session: {error}"
+                ))
+            })?,
     };
     let bridge = TakeoverBridge::new(selected.arbiter_config, output);
     let mut runtime =
@@ -843,14 +831,13 @@ pub(crate) fn run(
         return finalize(env, &mut guard, StopReason::GrabFailed(error));
     }
 
-    let real_kde_live = real_kde_required_actions.is_some();
     let stop = run_loop(
         env,
         &mut guard,
         fd,
         max_duration_seconds,
         settings_watcher.as_mut(),
-        real_kde_live,
+        real_desktop_plan.as_ref(),
     );
     finalize(env, &mut guard, stop)
 }
@@ -869,7 +856,7 @@ fn run_loop(
     fd: Fd,
     max_duration_seconds: u32,
     mut settings_watcher: Option<&mut crate::cmd::live_settings::SettingsWatcher>,
-    real_kde_live: bool,
+    real_desktop_plan: Option<&RealDesktopPlan>,
 ) -> StopReason {
     let start = (env.takeover.clock)();
     let mut tick_clock = InputDomainTickClock::default();
@@ -908,12 +895,8 @@ fn run_loop(
                 }
             }
 
-            let reload = if real_kde_live {
-                watcher.poll_validated(|settings| {
-                    required_real_kde_actions(&settings.gestures)
-                        .map(|_| ())
-                        .map_err(|error| error.to_string())
-                })
+            let reload = if let Some(plan) = real_desktop_plan {
+                watcher.poll_validated(|settings| plan.validate_reload(settings))
             } else {
                 watcher.poll()
             };
