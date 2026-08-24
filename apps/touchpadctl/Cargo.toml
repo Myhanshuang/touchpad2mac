@@ -1,0 +1,21 @@
+[package]
+name = "touchpadctl"
+description = "Touchpad Runtime Phase 1 CLI: devices, inspect, record, replay (M5)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+touchpad-core = { path = "../../crates/touchpad-core" }
+touchpad-desktop = { path = "../../crates/touchpad-desktop" }
+touchpad-linux = { path = "../../crates/touchpad-linux" }
+touchpad-trace = { path = "../../crates/touchpad-trace" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# Used only by the real-signal regression tests (raising SIGINT/SIGTERM with
+# the termination handler installed); the same pinned version as
+# touchpad-linux.
+libc = "=0.2.186"

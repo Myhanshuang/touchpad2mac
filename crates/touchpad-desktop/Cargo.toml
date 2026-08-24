@@ -1,0 +1,36 @@
+[package]
+name = "touchpad-desktop"
+description = "KDE Wayland desktop output adapter: XDG RemoteDesktop portal (D-Bus) session lifecycle plus libei sender transport, mapping the typed OutputSink contract to relative pointer, button, and pixel-precise scroll events (M6)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+touchpad-core = { path = "../touchpad-core" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+# Pure-Rust D-Bus client (zbus) used by the RemoteDesktop portal adapter. The
+# blocking API runs on top of zbus's async core; no system D-Bus library is
+# linked, so offline builds and tests stay operable without a session bus.
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
+
+# libei (Emulated Input) is a *runtime-loaded* system library: the native
+# FFI resolves `libei.so.1` with libloading at run time and reports a
+# structured "library missing" result when it is absent. Nothing links
+# against libei at build time, so the workspace builds and all tests run in
+# environments without the library.
+libloading = "0.8"
+
+# Used by the zbus portal response wait to race the async message stream
+# against a deadline, so a portal response timeout exits the helper thread
+# instead of abandoning it until process exit (M6 cleanup). Both are already
+# in the locked graph via zbus (which enables the async-io runtime).
+futures-lite = "2"
+async-io = "2"
+
+# Used only by the Linux native libei transport for the `poll` on the libei
+# fd (the same pinned version as touchpad-linux).
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "=0.2.186"

@@ -1,0 +1,1029 @@
+    Finished `release` profile [optimized] target(s) in 0.05s
+     Running unittests src/lib.rs (target/release/deps/touchpad_core-78788238ab614a73)
+
+running 226 tests
+test arbiter::tests::active_contact_after_cancel_does_not_resume ... ok
+test arbiter::tests::aggregate_left_truth_table_physical_edges_only ... ok
+test arbiter::tests::anchor_return_cannot_become_tap_after_exceeding_max_displacement ... ok
+test arbiter::tests::arbiter_config_default_leaves_tapping_disabled_and_with_tap_enables ... ok
+test arbiter::tests::aggregate_right_truth_table_three_sources ... ok
+test arbiter::tests::arbiter_sink_submits_events_in_order ... ok
+test arbiter::tests::begin_active_end_below_threshold_produces_no_output ... ok
+test arbiter::tests::both_fingers_lift_same_frame_secondary_tap_fires_once ... ok
+test arbiter::tests::candidate_pointer_before_second_finger_does_not_disqualify_tap ... ok
+test arbiter::tests::button_held_drag_emits_moves_between_down_and_up ... ok
+test arbiter::tests::cleanup_both_fail_retains_held_and_retries_explicit_up ... ok
+test arbiter::tests::cleanup_both_succeed_reset_normally ... ok
+test arbiter::tests::candidate_crossing_threshold_in_final_ended_frame_commits_once ... ok
+test arbiter::tests::cleanup_explicit_up_fails_wrapped_succeeds_on_faulted_adapter ... ok
+test arbiter::tests::cleanup_explicit_up_fails_wrapped_succeeds_reconciles_released ... ok
+test arbiter::tests::click_emits_exactly_one_down_and_one_up ... ok
+test arbiter::tests::committed_pointer_then_quick_two_finger_release_no_secondary_tap ... ok
+test arbiter::tests::config_rejects_non_finite_or_non_positive_scale ... ok
+test arbiter::tests::config_rejects_non_positive_threshold ... ok
+test arbiter::tests::default_config_without_tap_has_no_tap_output ... ok
+test arbiter::tests::diagonal_commit_emits_both_axes_once ... ok
+test arbiter::tests::disappearance_without_ended_record_cancels_without_click ... ok
+test arbiter::tests::discontinuity_began_after_follow_up_window_has_no_tap_and_drag_down ... ok
+test arbiter::tests::discontinuity_began_cannot_seed_tap_candidate ... ok
+test arbiter::tests::discontinuity_began_preserves_m7_pointer_re_anchoring ... ok
+test arbiter::tests::discontinuity_cancels_interaction_and_processes_buttons ... ok
+test arbiter::tests::discontinuity_during_lock_ends_lock_with_up ... ok
+test arbiter::tests::discontinuity_plus_simultaneous_physical_release_emits_single_aggregate_up ... ok
+test arbiter::tests::discontinuity_reanchors_scroll_candidate_but_no_secondary_tap ... ok
+test arbiter::tests::discontinuity_with_live_contact_starts_fresh_candidate ... ok
+test arbiter::tests::drag_lock_emits_lock_diagnostics ... ok
+test arbiter::tests::drag_lock_keeps_left_held_after_lift ... ok
+test arbiter::tests::duplicate_slot_frame_is_rejected_without_state_change ... ok
+test arbiter::tests::exact_threshold_boundary_commits ... ok
+test arbiter::tests::failed_movement_after_accepted_down_stays_held_until_cleanup ... ok
+test arbiter::tests::failed_up_after_accepted_down_remains_held_and_retries ... ok
+test arbiter::tests::fault_recovers_then_fresh_interaction_has_no_duplicates ... ok
+test arbiter::tests::final_ended_locked_continuation_remains_locked ... ok
+test arbiter::tests::final_ended_pointer_commit_emits_no_synthetic_click ... ok
+test arbiter::tests::final_ended_tap_drag_commit_enters_lock_without_up ... ok
+test arbiter::tests::final_movement_precedes_release_in_ending_frame ... ok
+test arbiter::tests::finger_count_changes_while_latched_do_not_remap ... ok
+test arbiter::tests::first_committed_delta_accounts_exactly_once_then_incremental ... ok
+test arbiter::tests::follow_up_drag_commits_accumulated_delta_once_and_ends_with_up ... ok
+test arbiter::tests::follow_up_window_expires_at_incoming_frame_boundary ... ok
+test arbiter::tests::follow_up_gap_equality_is_accepted ... ok
+test arbiter::tests::follow_up_near_u64_max_boundaries_use_checked_elapsed ... ok
+test arbiter::tests::follow_up_requires_exactly_one_new_finger ... ok
+test arbiter::tests::fractional_scale_small_deltas_equal_aggregate ... ok
+test arbiter::tests::fully_disabled_two_finger_config_is_inert ... ok
+test arbiter::tests::frame_decision_round_trips_through_json ... ok
+test arbiter::tests::frame_decision_serializes_with_two_finger_phase ... ok
+test arbiter::tests::horizontal_vertical_diagonal_negative_motion ... ok
+test arbiter::tests::incomplete_began_contact_is_warning_only ... ok
+test arbiter::tests::invalid_frame_does_not_change_tap_or_button_state ... ok
+test arbiter::tests::invalid_frame_leaves_two_finger_state_atomic ... ok
+test arbiter::tests::invalid_frame_with_button_edge_leaves_state_and_buttons_untouched ... ok
+test arbiter::tests::invalid_pressure_orientation_ellipse_frames_are_rejected ... ok
+test arbiter::tests::just_below_threshold_does_not_commit ... ok
+test arbiter::tests::just_over_threshold_commits ... ok
+test arbiter::tests::latch_on_first_two_finger_frame_disqualifies_reanchored_candidate ... ok
+test arbiter::tests::latch_release_reanchored_contacts_stay_tap_disqualified ... ok
+test arbiter::tests::lifecycle_walks_begin_cancel_then_fresh_begin ... ok
+test arbiter::tests::lifecycle_walks_begin_commit_finish ... ok
+test arbiter::tests::locked_contact_exceeding_tap_limit_keeps_lock ... ok
+test arbiter::tests::locked_non_qualifying_long_contact_keeps_lock_without_click ... ok
+test arbiter::tests::locked_qualifying_tap_unlocks_with_single_up ... ok
+test arbiter::tests::locked_reposition_continues_drag_with_first_delta_once ... ok
+test arbiter::tests::many_small_deltas_equal_one_aggregate_delta ... ok
+test arbiter::tests::missing_coordinates_cancel_then_recovery_no_tap ... ok
+test arbiter::tests::missing_coordinates_during_tap_drag_end_drag_with_up ... ok
+test arbiter::tests::missing_coordinates_end_committed_scroll_with_scroll_end ... ok
+test arbiter::tests::missing_coordinates_on_live_contact_cancels_and_releases_buttons ... ok
+test arbiter::tests::negative_live_tracking_id_frame_is_rejected_atomically ... ok
+test arbiter::tests::negative_remainder_is_carried_symmetrically ... ok
+test arbiter::tests::non_finite_arithmetic_rejects_frame_atomically ... ok
+test arbiter::tests::one_clean_ended_pair_member_still_qualifies_tap ... ok
+test arbiter::tests::one_finger_physical_click_remains_left ... ok
+test arbiter::tests::one_finger_staggered_lift_fires_secondary_tap_at_most_once ... ok
+test arbiter::tests::opposing_pinch_motion_cannot_falsely_qualify_as_secondary_tap ... ok
+test arbiter::tests::physical_left_held_at_release_boundary_blocks_secondary_tap ... ok
+test arbiter::tests::physical_left_held_before_pair_blocks_scroll_until_release ... ok
+test arbiter::tests::physical_left_ownership_disqualification_survives_release_in_cluster ... ok
+test arbiter::tests::physical_left_press_during_scroll_blocks_reopen_until_release ... ok
+test arbiter::tests::physical_press_during_synthetic_drag_does_not_duplicate_down ... ok
+test arbiter::tests::physical_right_edges_pass_through_the_right_aggregate ... ok
+test arbiter::tests::physical_right_held_before_pair_blocks_scroll_until_release ... ok
+test arbiter::tests::physical_right_press_cancels_two_finger_candidate ... ok
+test arbiter::tests::physical_right_press_during_scroll_blocks_reopen_until_release ... ok
+test arbiter::tests::physical_right_press_while_scrolling_orders_scroll_end_before_down ... ok
+test arbiter::tests::physical_two_finger_click_cancels_candidate_no_tap_on_release ... ok
+test arbiter::tests::physical_two_finger_click_ends_committed_scroll_with_scroll_end ... ok
+test arbiter::tests::physical_two_finger_click_latches_right_down_and_up ... ok
+test arbiter::tests::pointer_commit_wins_over_tap_no_click_on_release ... ok
+test arbiter::tests::press_before_second_finger_remains_left ... ok
+test arbiter::tests::press_edge_arrives_during_candidate_period_without_committing ... ok
+test arbiter::tests::press_without_contact_emits_down ... ok
+test arbiter::tests::quantize_math_is_exact ... ok
+test arbiter::tests::regression_cancel_then_later_monotonic_frame_no_tap ... ok
+test arbiter::tests::regression_keeps_latched_right_visible_until_release_all ... ok
+test arbiter::tests::regression_without_active_interaction_errors_without_cancel ... ok
+test arbiter::tests::rejected_first_down_is_not_held_and_causes_no_unmatched_up ... ok
+test arbiter::tests::release_all_clears_candidate_and_residue_even_after_errors ... ok
+test arbiter::tests::release_all_closes_scroll_and_releases_right_exactly_once ... ok
+test arbiter::tests::release_all_releases_held_button_exactly_once_and_resets ... ok
+test arbiter::tests::release_all_then_fresh_tap_interaction_works ... ok
+test arbiter::tests::release_all_while_locked_emits_up_exactly_once_and_resets ... ok
+test arbiter::tests::release_survives_cancellation_and_discontinuity ... ok
+test arbiter::tests::remainder_accumulates_and_is_reported ... ok
+test arbiter::tests::remaining_active_contact_does_not_become_pointer_after_two_finger_end ... ok
+test arbiter::tests::same_frame_press_move_release_ordering ... ok
+test arbiter::tests::scroll_axes_negative_zero_and_diagonal ... ok
+test arbiter::tests::scroll_commits_accumulated_delta_once_then_incremental ... ok
+test arbiter::tests::scroll_disabled_never_commits_but_secondary_tap_still_fires ... ok
+test arbiter::tests::scroll_disabled_tap_disabled_physical_click_still_latches ... ok
+test arbiter::tests::scroll_many_small_deltas_equal_one_aggregate_and_remainder_resets ... ok
+test arbiter::tests::scroll_natural_direction_sign_on_both_axes ... ok
+test arbiter::tests::scroll_wins_over_secondary_tap ... ok
+test arbiter::tests::scroll_zero_delta_produces_no_event ... ok
+test arbiter::tests::second_contact_after_commitment_cancels_with_no_further_motion ... ok
+test arbiter::tests::second_contact_before_commitment_cancels_without_motion ... ok
+test arbiter::tests::second_finger_during_lock_ends_lock_with_up ... ok
+test arbiter::tests::second_finger_during_tap_drag_ends_drag_with_up ... ok
+test arbiter::tests::second_finger_lifting_alone_does_not_cancel ... ok
+test arbiter::tests::second_tap_after_window_expiry_is_ordinary_click_pair ... ok
+test arbiter::tests::secondary_tap_disabled_produces_nothing ... ok
+test arbiter::tests::secondary_tap_duration_boundary_equality_accepted_strictly_greater_disqualifies ... ok
+test arbiter::tests::secondary_tap_per_contact_displacement_boundary ... ok
+test arbiter::tests::sequence_regression_cancels_and_fails_closed_until_release ... ok
+test arbiter::tests::sequence_regression_during_lock_keeps_held_until_release_all ... ok
+test arbiter::tests::sequence_regression_keeps_scroll_open_until_release_all ... ok
+test arbiter::tests::simultaneous_physical_transitions_with_synthetic_cancellation_wire_invariant ... ok
+test arbiter::tests::single_tap_emits_click_pair_at_release_frame ... ok
+test arbiter::tests::sink_cleanup_failure_with_left_and_right_held_retries_exact_logs ... ok
+test arbiter::tests::sink_cleanup_while_drag_locked_releases_exactly_once ... ok
+test arbiter::tests::sink_fault_while_locked_then_recovery_releases_once ... ok
+test arbiter::tests::sink_motion_failure_after_accepted_synthetic_down_stays_held ... ok
+test arbiter::tests::sink_rejected_first_delta_after_accepted_begin_cleanup_closes_scroll ... ok
+test arbiter::tests::sink_rejected_right_down_owes_no_up ... ok
+test arbiter::tests::sink_rejected_right_up_after_accepted_down_retries ... ok
+test arbiter::tests::sink_rejected_scroll_begin_owes_no_scroll_end ... ok
+test arbiter::tests::sink_rejected_scroll_end_after_accepted_begin_retries ... ok
+test arbiter::tests::sink_rejected_tap_down_is_not_held_and_causes_no_unmatched_up ... ok
+test arbiter::tests::sink_rejected_tap_up_after_accepted_down_retries_on_cleanup ... ok
+test arbiter::tests::slot_reuse_without_anchor_leakage ... ok
+test arbiter::tests::synthetic_drag_end_while_physical_held_defers_up_until_physical_release ... ok
+test arbiter::tests::synthetic_drag_final_movement_precedes_synthetic_up ... ok
+test arbiter::tests::tap_cancelled_by_physical_press_emits_no_synthetic_click ... ok
+test arbiter::tests::tap_cancelled_by_second_finger_emits_nothing ... ok
+test arbiter::tests::tap_candidate_with_physical_already_held_never_fires ... ok
+test arbiter::tests::tap_config_rejects_impossible_feature_combinations ... ok
+test arbiter::tests::tap_config_rejects_non_positive_movement ... ok
+test arbiter::tests::tap_config_rejects_zero_durations ... ok
+test arbiter::tests::tap_duration_boundary_equality_accepted_strictly_greater_cancels ... ok
+test arbiter::tests::tap_during_discontinuity_emits_nothing ... ok
+test arbiter::tests::tap_emits_tap_fired_diagnostic ... ok
+test arbiter::tests::tap_movement_boundary_equality_accepted_strictly_greater_cancels ... ok
+test arbiter::tests::tap_without_tap_and_drag_ends_in_finished_phase ... ok
+test arbiter::tests::third_finger_cancel_then_stable_pair_no_tap_fresh_cluster_taps ... ok
+test arbiter::tests::third_finger_ends_committed_scroll_with_scroll_end ... ok
+test arbiter::tests::timestamp_regression_cancels_and_fails_closed ... ok
+test arbiter::tests::timestamp_regression_during_lock_keeps_held_until_release_all ... ok
+test arbiter::tests::tracking_id_replacement_resets_anchor_and_remainder ... ok
+test arbiter::tests::tracking_replacement_ends_interaction_without_tap_and_no_same_frame_reanchor ... ok
+test arbiter::tests::tracking_replacement_of_drag_with_lock_continues_locked ... ok
+test arbiter::tests::tracking_replacement_of_tap_candidate_produces_no_click ... ok
+test arbiter::tests::tracking_replacement_then_stable_pair_no_tap ... ok
+test arbiter::tests::transition_table_legal_and_illegal_pairs ... ok
+test arbiter::tests::two_click_pairs_pass_through_in_order ... ok
+test arbiter::tests::two_finger_candidate_anchors_without_leakage_and_commits_at_threshold ... ok
+test arbiter::tests::two_finger_config_disabled_by_default_and_with_two_finger_enables ... ok
+test arbiter::tests::two_finger_config_rejects_invalid_values ... ok
+test arbiter::tests::two_finger_entry_releases_sticky_drag_lock_with_one_left_up ... ok
+test arbiter::tests::two_finger_family_wins_over_one_finger_pointer_without_double_commit ... ok
+test arbiter::tests::two_finger_pair_identity_is_independent_of_vector_order ... ok
+test arbiter::tests::two_finger_phase_is_observable ... ok
+test arbiter::tests::two_finger_physical_click_releases_drag_lock_before_right_down ... ok
+test arbiter::tests::two_quick_taps_emit_two_click_pairs ... ok
+test arbiter::tests::two_secondary_taps_produce_two_right_click_pairs ... ok
+test arbiter::tests::wrapped_sink_release_all_failure_is_reported_and_retried ... ok
+test arbiter::tests::zero_movement_produces_no_pointer_move ... ok
+test axis::tests::axis_info_range_validation ... ok
+test axis::tests::delta_conversion_has_no_origin ... ok
+test axis::tests::explicit_override_is_the_other_allowed_path_for_position ... ok
+test axis::tests::missing_resolution_is_an_error ... ok
+test axis::tests::position_boundary_values_do_not_overflow ... ok
+test axis::tests::position_converts_with_reported_resolution ... ok
+test axis::tests::position_maps_axis_min_to_zero_mm ... ok
+test axis::tests::profile_override_keeps_origin_semantics ... ok
+test contact::tests::began_contact_without_coordinates_is_diagnosed ... ok
+test contact::tests::complete_began_contact_validates_clean ... ok
+test contact::tests::frame_discontinuity_flag ... ok
+test contact::tests::frame_rejects_duplicate_slots ... ok
+test contact::tests::invalid_pressure_is_diagnosed ... ok
+test contact::tests::negative_live_tracking_id_is_diagnosed ... ok
+test device::tests::axis_ids_are_distinct ... ok
+test device::tests::invalid_axis_range_is_diagnosed ... ok
+test device::tests::valid_descriptor_has_no_diagnostics ... ok
+test diagnostic::tests::diagnostic_construction ... ok
+test m10::tests::profile_builds_a_validated_arbiter_config ... ok
+test m10::tests::profile_constructs_and_exposes_every_parameter ... ok
+test m10::tests::profile_name_matches_the_cli_contract ... ok
+test m11::tests::fidelity_error_variant_is_reachable ... ok
+test m11::tests::profile_builds_a_validated_arbiter_config_with_fidelity ... ok
+test m11::tests::profile_constructs_and_exposes_every_parameter ... ok
+test m11::tests::profile_inherits_every_m10_value ... ok
+test m11::tests::profile_name_matches_the_cli_contract ... ok
+test output::tests::output_events_round_trip_through_json ... ok
+test output::tests::partial_failure_is_reported_and_shutdown_is_well_defined ... ok
+test output::tests::recording_sink_preserves_order ... ok
+test profile::tests::effective_resolution_prefers_override ... ok
+test profile::tests::no_resolution_anywhere_is_none ... ok
+test profile::tests::quirks_dedup ... ok
+test time::tests::checked_add_overflow ... ok
+test time::tests::duration_since_works ... ok
+test time::tests::nanos_round_trip ... ok
+test time::tests::timestamps_are_external_values_not_a_local_clock ... ok
+test units::tests::checked_arithmetic_preserves_finiteness ... ok
+test units::tests::constructors_reject_non_finite_with_errors ... ok
+test units::tests::deserialize_rejects_non_finite ... ok
+test units::tests::logical_pixels_accumulate_via_checked_ops ... ok
+test units::tests::px_per_mm_scale_rejects_invalid_values ... ok
+test units::tests::serde_json_round_trip ... ok
+test units::tests::units_are_distinct_newtypes ... ok
+test validation::tests::finite_and_normalized_checks ... ok
+test validation::tests::finite_deserialize_helper_rejects_bad_values ... ok
+
+test result: ok. 226 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/contracts.rs (target/release/deps/contracts-f7ce33ca645c0f31)
+
+running 8 tests
+test delta_conversion_has_no_origin_via_public_api ... ok
+test frame_round_trips_through_json ... ok
+test descriptor_round_trips_through_json ... ok
+test json_rejects_non_finite_unit_values ... ok
+test frame_validation_detects_structural_bugs ... ok
+test output_sink_contract_ordering_and_release ... ok
+test position_conversion_honors_axis_origin_via_public_api ... ok
+test profile_override_is_the_only_path_when_resolution_is_missing ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m11_fidelity.rs (target/release/deps/m11_fidelity-3652120a2d75879f)
+
+running 57 tests
+test cancellation_by_second_contact_discards_pending_fidelity_motion ... ok
+test candidate_ownership_decisions_are_identical_with_fidelity_enabled ... ok
+test clean_end_resets_fidelity_and_remainder_after_final_motion ... ok
+test config_accepts_min_gain_equal_to_max_gain ... ok
+test config_accepts_the_documented_values ... ok
+test config_rejects_max_gain_below_min_gain_or_non_finite ... ok
+test config_rejects_non_finite_base_scale_via_its_own_validated_type ... ok
+test config_rejects_non_finite_or_non_greater_gain_x1 ... ok
+test config_rejects_non_finite_or_non_positive_dead_zone_radius ... ok
+test config_rejects_non_finite_or_non_positive_gain_x0 ... ok
+test config_rejects_non_finite_or_non_positive_min_gain ... ok
+test config_rejects_non_finite_or_non_positive_tracking_speed ... ok
+test config_rejects_zero_velocity_tau_and_long_gap ... ok
+test constant_motion_agrees_within_one_percent_at_60_and_120_hz ... ok
+test diagonal_motion_releases_both_axes_together ... ok
+test discontinuity_cancels_before_contact_handling_with_no_final_motion ... ok
+test duplicate_frame_folds_into_p_and_v_pending_without_flushing ... ok
+test drag_lock_ownership_stays_pre_fidelity ... ok
+test duplicate_timestamp_is_not_a_long_gap ... ok
+test ema_approaches_the_physical_speed_after_several_samples ... ok
+test fidelity_disabled_arbiter_keeps_the_exact_m10_decision_stream ... ok
+test first_call_does_not_fabricate_elapsed_time_or_velocity ... ok
+test first_call_preserves_full_motion_at_min_gain_and_excludes_it_from_velocity ... ok
+test first_call_sub_radius_delta_is_held_and_retained ... ok
+test gain_is_continuous_monotonic_bounded_and_finite ... ok
+test long_gap_above_the_boundary_reanchors ... ok
+test long_gap_at_long_gap_minus_1_ns_is_a_normal_fold_and_update ... ok
+test long_gap_exactly_reanchors_and_discards_the_gap_crossing_delta ... ok
+test long_gap_reanchor_is_not_an_error ... ok
+test m11_arbiter_config_is_exactly_m10_plus_fidelity ... ok
+test m11_first_commit_continuation_and_final_clean_movement ... ok
+test m11_hold_leaves_remainder_unchanged ... ok
+test m11_profile_inherits_every_exposed_m10_value ... ok
+test m11_reanchored_preserves_the_pixel_remainder ... ok
+test m11_profile_exposes_the_exact_documented_constants ... ok
+test m11_remainder_invariant_has_no_epsilon_drain_and_is_exposed ... ok
+test overflowing_scaled_emission_is_a_runtime_error ... ok
+test overflowing_velocity_sample_is_a_runtime_error ... ok
+test m8_follow_up_drag_committed_motion_flows_through_fidelity ... ok
+test rejected_runtime_error_frame_rolls_back_remainder_and_fidelity_state ... ok
+test non_finite_delta_is_a_runtime_error ... ok
+test physical_button_ownership_stays_pre_fidelity ... ok
+test release_uses_the_current_filtered_velocity_not_the_first_frame ... ok
+test positive_dt_updates_velocity_and_evaluates_the_dead_zone ... ok
+test release_all_resets_fidelity_remainder_and_all_interaction_state ... ok
+test repeated_zero_dt_frames_never_fabricate_velocity ... ok
+test signed_oscillation_cancels_algebraically ... ok
+test slow_consistent_motion_waits_for_the_radius_then_releases_all ... ok
+test scalar_is_isotropic_and_includes_the_tracking_multiplier ... ok
+test timestamp_regression_occurs_before_fidelity_and_applies_no_partial_draft ... ok
+test smoothstep_is_a_monotone_ramp_between_zero_and_one ... ok
+test tracking_id_replacement_processes_old_final_motion_then_starts_fresh ... ok
+test sequence_regression_occurs_before_fidelity ... ok
+test two_finger_scroll_ownership_stays_pre_fidelity ... ok
+test two_finger_secondary_tap_ownership_stays_pre_fidelity ... ok
+test reversal_after_accumulation_cancels_before_release ... ok
+test tap_and_tap_drag_ownership_stays_pre_fidelity ... ok
+
+test result: ok. 57 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m7_arbiter.rs (target/release/deps/m7_arbiter-a57dccf008c41aaa)
+
+running 15 tests
+test arbiter_sink_delivers_events_in_decision_order ... ok
+test arbiter_sink_failed_movement_after_accepted_down_releases_once_and_recovers ... ok
+test arbiter_sink_failed_release_is_retried_and_fresh_interaction_works ... ok
+test arbiter_sink_rejected_down_is_not_held_and_releases_nothing ... ok
+test arbiter_sink_wrapped_cleanup_is_authoritative_after_failed_explicit_up ... ok
+test arbiter_sink_wrapped_release_all_failure_is_retried ... ok
+test config_validation_is_public_and_strict ... ok
+test decisions_are_serializable ... ok
+test incomplete_began_contact_is_warning_only ... ok
+test invalid_frame_with_button_edge_leaves_state_and_buttons_untouched ... ok
+test invalid_pressure_orientation_ellipse_frames_are_rejected ... ok
+test negative_live_tracking_id_frame_is_rejected_atomically ... ok
+test public_lifecycle_observability_through_a_full_interaction ... ok
+test regression_and_invalid_frame_errors_are_public_and_structured ... ok
+test release_all_is_public_idempotent_and_resets ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m8_arbiter.rs (target/release/deps/m8_arbiter-5cbc139770adb832)
+
+running 14 tests
+test arbiter_sink_cleanup_while_drag_locked_releases_exactly_once ... ok
+test arbiter_sink_rejected_tap_up_after_accepted_down_retries_once ... ok
+test public_decisions_serialize_with_tap_phase ... ok
+test public_discontinuity_plus_simultaneous_physical_release_emits_single_up ... ok
+test public_discontinuity_began_cannot_seed_tap_or_tap_and_drag ... ok
+test public_final_ended_locked_continuation_remains_locked ... ok
+test public_final_ended_pointer_commit_produces_no_synthetic_click ... ok
+test public_final_ended_tap_drag_commit_enters_lock_without_up ... ok
+test public_follow_up_near_u64_max_boundaries_use_checked_elapsed ... ok
+test public_physical_arbitration_during_lock ... ok
+test public_physical_competition_in_tap_candidate ... ok
+test public_tap_and_drag_with_lock_continues_and_unlocks ... ok
+test public_tap_sequence_with_observable_phase ... ok
+test tap_config_is_public_and_validated ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m9_arbiter.rs (target/release/deps/m9_arbiter-e5cc9c3adb2f3e38)
+
+running 23 tests
+test public_arbiter_sink_fault_rejected_scroll_end_after_accepted_begin_retries ... ok
+test public_arbiter_sink_fault_rejected_right_up_after_accepted_down_retries ... ok
+test public_arbiter_sink_rejected_right_down_owes_no_up ... ok
+test public_cancellation_disqualifies_cluster_until_fresh_cluster ... ok
+test public_committed_pointer_then_quick_two_finger_release_no_secondary_tap ... ok
+test public_decisions_serialize_with_two_finger_phase ... ok
+test public_disappearance_without_ended_cancels_secondary_tap ... ok
+test public_natural_direction_negates_both_axes ... ok
+test public_one_clean_ended_pair_member_still_qualifies_tap ... ok
+test public_one_finger_physical_click_remains_left ... ok
+test public_physical_left_held_at_release_blocks_secondary_tap ... ok
+test public_physical_left_held_before_pair_blocks_scroll_until_release ... ok
+test public_physical_left_press_during_scroll_blocks_reopen_until_release ... ok
+test public_physical_right_held_before_pair_blocks_scroll_until_release ... ok
+test public_physical_right_press_during_scroll_blocks_reopen_until_release ... ok
+test public_physical_right_press_while_scrolling_orders_scroll_end_before_down ... ok
+test public_physical_two_finger_click_latches_right_and_stays_latched ... ok
+test public_release_all_closes_scroll_and_releases_right_exactly_once ... ok
+test public_release_all_reports_both_cleanup_failures ... ok
+test public_scroll_disabled_never_opens_scroll_lifecycle ... ok
+test public_two_finger_scroll_with_observable_phase_and_natural_direction ... ok
+test public_two_finger_secondary_tap_emits_one_right_click_pair ... ok
+test two_finger_config_is_public_and_validated ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/release/deps/touchpad_desktop-e394cdb6f1a3be84)
+
+running 116 tests
+test capabilities::tests::maps_libei_bits_honestly ... ok
+test capabilities::tests::none_is_empty_and_summary_is_truthful ... ok
+test desktop::tests::emit_pattern_preserves_nonzero_counts_through_cleanup ... ok
+test desktop::tests::emit_pattern_preserves_skipped_capabilities_through_cleanup ... ok
+test desktop::tests::emit_pattern_refuses_when_the_preflight_probe_fails ... ok
+test desktop::tests::emit_pattern_reports_a_server_interruption_as_the_primary_failure ... ok
+test desktop::tests::emit_pattern_reports_cleanup_failure_even_when_the_pattern_succeeded ... ok
+test emit::tests::fake_desktop_output_never_emits_and_records_the_call ... ok
+test emit::tests::pattern_is_fixed_and_bounded ... ok
+test emit::tests::run_pattern_emits_all_steps_with_full_capabilities ... ok
+test emit::tests::run_pattern_honours_cancellation_between_steps ... ok
+test emit::tests::run_pattern_skips_missing_capabilities_and_reports_them ... ok
+test error::tests::every_variant_has_a_stable_category ... ok
+test fake::tests::fake_output_capabilities_derive_from_bits ... ok
+test fake::tests::fake_portal_fault_injection ... ok
+test fake::tests::fake_portal_records_device_selection_and_close ... ok
+test fake::tests::fake_transport_records_wire_calls_and_honors_send_errors ... ok
+test fake::tests::fake_transport_scripted_events_are_consumed_in_order ... ok
+test ffi::tests::borrowed_views_expose_their_pointer ... ok
+test ffi::tests::capability_bits_match_libei_1_6 ... ok
+test ffi::tests::device_type_constants_match_libei_1_6 ... ok
+test ffi::tests::event_constants_match_libei_1_6 ... ok
+test ffi::tests::load_is_a_structured_probe ... ok
+test ffi::tests::null_owner_drop_is_a_no_op ... ok
+test ffi::tests::owner_drop_calls_unref_exactly_once ... ok
+test ffi::tests::owner_pins_the_library_after_the_loader_is_dropped ... ok
+test ffi::tests::owners_move_but_do_not_copy ... ok
+test held::tests::button_lifecycle_is_tracked_and_released ... ok
+test held::tests::button_up_without_down_is_rejected ... ok
+test held::tests::clear_resets_everything ... ok
+test held::tests::duplicate_button_down_is_a_no_op ... ok
+test held::tests::keys_follow_the_button_rules ... ok
+test held::tests::motion_and_actions_carry_no_state ... ok
+test held::tests::partial_axis_activity_accumulates_independently ... ok
+test held::tests::repeated_scroll_lifecycles_reset_axis_state ... ok
+test held::tests::scroll_lifecycle_requires_begin_and_delta_before_release_stop ... ok
+test held::tests::two_axis_scroll_stops_both_axes ... ok
+test held::tests::x_only_scroll_stops_only_x ... ok
+test held::tests::y_only_scroll_stops_only_y ... ok
+test held::tests::zero_delta_activates_no_axis ... ok
+test native_transport::tests::device_and_seat_ids_are_opaque_u64_wrappers ... ok
+test native_transport::tests::device_type_mapping_matches_libei ... ok
+test native_transport::tests::pump_drains_every_event_from_one_dispatch_in_order ... ok
+test native_transport::tests::pump_flushes_outgoing_data_even_when_the_fd_is_not_readable ... ok
+test native_transport::tests::queued_disconnect_is_terminal_only_at_delivery_without_losing_prior_events ... ok
+test native_transport::tests::resumed_device_stays_usable_until_a_queued_pause_is_delivered ... ok
+test native_transport::tests::resumed_device_stays_usable_until_a_queued_removal_is_delivered ... ok
+test native_transport::tests::seat_stays_bindable_until_a_queued_seat_removed_is_delivered ... ok
+test native_transport::tests::wait_event_maps_the_full_lifecycle_in_order ... ok
+test native_transport::tests::wait_event_surfaces_every_event_from_one_dispatch_when_poll_goes_stale ... ok
+test portal::tests::device_type_constants_match_the_portal_spec ... ok
+test portal_zbus::tests::create_session_options_carry_distinct_safe_tokens ... ok
+test portal_zbus::tests::invalid_token_fails_with_a_path_construction_diagnostic ... ok
+test portal_zbus::tests::every_generated_token_is_object_path_safe ... ok
+test portal_zbus::tests::per_method_option_contract_matches_the_remote_desktop_spec ... ok
+test portal_zbus::tests::portal_constants_match_the_observed_interface ... ok
+test portal_zbus::tests::response_codes_map_to_structured_results ... ok
+test portal_zbus::tests::response_race_ends_with_the_stream ... ok
+test portal_zbus::tests::response_race_returns_the_first_accepted_item ... ok
+test portal_zbus::tests::predicted_paths_are_valid_and_follow_the_portal_convention ... ok
+test portal_zbus::tests::sender_component_matches_the_portal_convention ... ok
+test portal_zbus::tests::session_handle_decodes_from_wire_string ... ok
+test portal_zbus::tests::session_handle_invalid_path_string_fails ... ok
+test portal_zbus::tests::session_handle_missing_key_fails ... ok
+test portal_zbus::tests::session_handle_object_path_value_is_rejected_with_signature_context ... ok
+test portal_zbus::tests::session_handle_wrong_type_fails_with_value_and_signature_context ... ok
+test probe::tests::available_report_is_complete_and_unqualified ... ok
+test probe::tests::missing_bus_and_portal_are_preflight_blockers ... ok
+test probe::tests::render_report_covers_every_finding ... ok
+test probe::tests::missing_library_is_a_preflight_blocker ... ok
+test sink::tests::cancellation_after_authorization_releases_the_session ... ok
+test sink::tests::cancellation_before_prepare_is_observed ... ok
+test sink::tests::cancellation_between_steps_still_runs_ordered_release ... ok
+test sink::tests::cancellation_during_handshake_aborts_and_releases ... ok
+test sink::tests::capability_missing_events_are_rejected ... ok
+test portal_zbus::tests::session_bus_probe_is_structured ... ok
+test sink::tests::explicit_zero_axis_scroll_end_is_local_with_no_wire_stop_and_no_frame ... ok
+test sink::tests::fallback_drop_releases_held_state ... ok
+test sink::tests::forced_release_stops_active_axes ... ok
+test sink::tests::keyboard_and_desktop_actions_are_not_negotiated ... ok
+test sink::tests::partial_scroll_send_stops_only_sent_axes ... ok
+test sink::tests::partial_send_failure_is_honest_and_not_tracked ... ok
+test sink::tests::pause_of_another_device_is_ignored ... ok
+test sink::tests::prepare_cancellable_without_cancellation_is_prepare ... ok
+test sink::tests::prepare_failure_with_cleanup_failure_is_composite_and_preserves_primary ... ok
+test sink::tests::prepare_failure_without_cleanup_failure_is_the_plain_primary ... ok
+test sink::tests::prepare_handshake_failure_with_transport_disconnect_failure_is_composite ... ok
+test sink::tests::prepare_reaches_emulating_with_negotiated_capabilities ... ok
+test sink::tests::prepare_rejects_when_called_twice ... ok
+test sink::tests::prepare_reports_cancelled_authorization_and_still_releases ... ok
+test sink::tests::prepare_reports_transport_disconnect_during_handshake ... ok
+test probe::tests::env_probe_is_side_effect_free_and_structured ... ok
+test sink::tests::pump_drains_all_queued_server_events ... ok
+test sink::tests::release_all_emits_releases_before_disconnect_and_close ... ok
+test sink::tests::release_all_is_idempotent_and_returns_to_neutral ... ok
+test sink::tests::release_failure_is_preserved_and_reported ... ok
+test sink::tests::scroll_begin_has_no_wire_event ... ok
+test sink::tests::scroll_end_stops_only_the_active_axes ... ok
+test sink::tests::server_disconnect_after_handshake_rejects_output_and_cleans_up ... ok
+test sink::tests::server_pause_after_handshake_rejects_output_and_cleans_up ... ok
+test sink::tests::server_removal_after_handshake_rejects_output_and_cleans_up ... ok
+test sink::tests::server_seat_removal_after_handshake_interrupts ... ok
+test sink::tests::submit_emits_motion_button_and_scroll_in_order ... ok
+test sink::tests::submit_is_rejected_before_emulating ... ok
+test sink::tests::two_axis_scroll_end_stops_both_axes ... ok
+test sink::tests::virtual_device_after_physical_is_chosen ... ok
+test sink::tests::zero_delta_scroll_releases_without_stop ... ok
+test streaming::tests::lazy_factory_timeline_allocation_at_create_external_work_at_prepare ... ok
+test streaming::tests::portal_streaming_output_delegates_to_the_m6_sink ... ok
+test streaming::tests::portal_streaming_output_prepare_failure_is_released ... ok
+test streaming::tests::server_interruption_must_be_captured_before_release_all ... ok
+test transport::tests::device_and_seat_ids_round_trip_as_opaque_values ... ok
+test portal_zbus::tests::generated_tokens_are_unique ... ok
+test portal_zbus::tests::response_race_times_out_when_nothing_arrives ... ok
+test sink::tests::physical_device_is_rejected_before_claiming_logical_pixels ... ok
+test sink::tests::prepare_times_out_without_a_useful_device ... ok
+
+test result: ok. 116 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/release/deps/touchpad_linux-465aa234766da5a8)
+
+running 168 tests
+test bridge::tests::forwards_frames_to_the_arbiter_sink_in_order ... ok
+test bridge::tests::first_fault_is_stored_and_later_frames_are_ignored ... ok
+test decode::tests::configure_accepts_maximum_slot_count ... ok
+test bridge::tests::sink_mut_exposes_the_output_sink ... ok
+test decode::tests::configure_rejects_missing_slot_count ... ok
+test bridge::tests::release_all_submits_exactly_the_owed_releases_after_a_partial_fault ... ok
+test decode::tests::configure_rejects_slot_count_above_maximum ... ok
+test decode::tests::configure_rejects_non_type_b_device ... ok
+test decode::tests::configure_twice_is_rejected ... ok
+test decode::tests::contact_beginning_and_ending_within_one_frame_is_not_published ... ok
+test decode::tests::empty_syn_report_publishes_empty_frame ... ok
+test decode::tests::end_then_begin_in_one_cycle_leaves_new_lifecycle_at_boundary ... ok
+test decode::tests::ended_contact_that_was_never_published_is_not_published ... ok
+test decode::tests::failed_resync_degrades_and_stops_emitting_frames ... ok
+test decode::tests::feed_before_configure_is_rejected ... ok
+test decode::tests::field_after_end_does_not_alter_the_ended_contact ... ok
+test decode::tests::field_after_end_does_not_leak_into_a_later_begin ... ok
+test decode::tests::field_before_replacement_does_not_complete_the_new_contact ... ok
+test decode::tests::field_event_on_empty_slot_is_diagnosed ... ok
+test decode::tests::incomplete_new_contact_is_held_then_published_with_diagnostics ... ok
+test decode::tests::incomplete_interleaved_replacement_chain_is_held_until_complete ... ok
+test decode::tests::interleaved_fields_across_multiple_replacements_stay_with_their_lifecycle ... ok
+test decode::tests::invalid_slot_selection_fails_closed_until_a_valid_selection ... ok
+test decode::tests::just_resynced_flags_the_feed_that_installed_the_snapshot ... ok
+test decode::tests::many_replacements_in_one_cycle_are_bounded_and_summarized ... ok
+test decode::tests::missing_resolution_keeps_coordinates_unnormalized_with_diagnostics ... ok
+test decode::tests::missing_resync_source_fails_recovery ... ok
+test decode::tests::multiple_slots_and_interleaved_updates ... ok
+test decode::tests::multiple_tracking_replacements_in_one_cycle_keep_only_final_lifecycle ... ok
+test decode::tests::physical_buttons_commit_atomically_with_frame ... ok
+test decode::tests::raw_event_from_trace_event_converts_timestamps ... ok
+test decode::tests::repeated_tracking_id_begin_is_a_noop ... ok
+test decode::tests::replay_finish_rejects_unresolved_synchronization_loss ... ok
+test decode::tests::resync_queries_snapshot_exactly_once_at_the_boundary ... ok
+test decode::tests::resync_snapshot_active_contact_missing_coordinates_degrades ... ok
+test decode::tests::resync_snapshot_buttons_are_published ... ok
+test decode::tests::resync_snapshot_duplicate_slots_degrades_without_a_frame ... ok
+test decode::tests::resync_snapshot_invalid_tracking_id_degrades ... ok
+test decode::tests::resync_snapshot_lengths_use_delta_conversion_not_position_origin ... ok
+test decode::tests::resync_snapshot_out_of_range_slot_degrades_without_a_frame ... ok
+test decode::tests::single_contact_begin_update_end ... ok
+test decode::tests::slot_switch_does_not_alter_other_slots_pending ... ok
+test decode::tests::successful_resync_publishes_discontinuity_frame_and_returns_to_normal ... ok
+test decode::tests::syn_dropped_ignores_incremental_events_until_boundary ... ok
+test decode::tests::touch_major_minor_use_delta_conversion_not_position_origin ... ok
+test decode::tests::tracking_id_below_minus_one_is_diagnosed_and_ignored ... ok
+test decode::tests::tracking_id_end_without_contact_is_diagnosed ... ok
+test decode::tests::tracking_id_replacement_ends_old_contact_implicitly ... ok
+test decode::tests::unupdated_fields_inherit_from_committed_state ... ok
+test device::tests::buttonpad_property_qualifies_a_candidate ... ok
+test device::tests::candidate_touchpad_is_accepted_with_explainable_evidence ... ok
+test device::tests::direct_touch_device_is_rejected ... ok
+test device::tests::enumerate_filters_event_nodes_and_sorts ... ok
+test device::tests::enumerate_missing_input_dir_is_an_error ... ok
+test device::tests::ioctl_failure_during_probe_is_inaccessible ... ok
+test device::tests::is_event_node_matches_only_digit_suffixed_names ... ok
+test device::tests::missing_resolution_maps_to_none_in_axis_info ... ok
+test device::tests::non_pointer_non_buttonpad_device_is_rejected ... ok
+test device::tests::non_type_b_device_is_rejected_with_a_reason ... ok
+test device::tests::oversized_slot_count_is_rejected ... ok
+test device::tests::permission_denied_open_is_inaccessible ... ok
+test device::tests::physical_buttons_are_reflected_in_the_descriptor ... ok
+test device::tests::probe_closes_its_handle ... ok
+test device::tests::semi_mt_and_pressure_axes_do_not_disqualify ... ok
+test device::tests::truncated_ev_bits_response_is_inaccessible ... ok
+test device::tests::truncated_key_bits_response_is_inaccessible ... ok
+test device::tests::truncated_prop_bits_response_is_inaccessible ... ok
+test event::tests::decode_round_trip_and_multi_event_buffer ... ok
+test event::tests::encode_decode_round_trip_uses_the_supported_layout ... ok
+test event::tests::input_event_abi_matches_libc_at_runtime ... ok
+test event::tests::input_event_size_is_the_supported_x86_64_live_layout ... ok
+test event::tests::live_conversion_matches_trace_conversion_rules ... ok
+test event::tests::nanosecond_overflow_is_rejected_not_wrapped ... ok
+test event::tests::negative_seconds_are_rejected ... ok
+test event::tests::to_trace_event_preserves_the_raw_event ... ok
+test event::tests::to_trace_event_rejects_unrepresentable_timevals ... ok
+test event::tests::torn_buffer_is_a_structured_error ... ok
+test event::tests::usec_range_is_checked ... ok
+test event::tests::valid_timeval_converts_to_monotonic_nanos ... ok
+test grab::tests::close_is_idempotent_and_releases_first ... ok
+test grab::tests::close_with_failed_ungrab_releases_once_then_closes ... ok
+test grab::tests::double_grab_is_a_noop ... ok
+test grab::tests::drop_releases_grab_and_closes_as_fallback ... ok
+test grab::tests::drop_with_failed_ungrab_releases_once_and_closes ... ok
+test grab::tests::drop_without_grab_only_closes ... ok
+test grab::tests::failed_ungrab_is_attempted_at_most_once ... ok
+test grab::tests::grab_ioctl_failure_is_propagated ... ok
+test grab::tests::grab_is_explicit_opt_in ... ok
+test grab::tests::open_failure_is_propagated ... ok
+test grab::tests::operations_on_a_closed_handle_are_gated ... ok
+test grab::tests::regrab_after_release_rearms_the_release ... ok
+test grab::tests::ungrab_is_idempotent ... ok
+test grab::tests::ungrab_without_grab_is_a_noop ... ok
+test recorder::tests::create_failure_is_actionable ... ok
+test recorder::tests::finish_marks_a_clean_recording ... ok
+test runtime::tests::clock_failure_closes_fd_and_never_grabs_or_reads ... ok
+test recorder::tests::rejects_unrepresentable_timevals_without_writing ... ok
+test recorder::tests::records_events_before_they_could_reach_the_decoder ... ok
+test runtime::tests::decoder_failure_keeps_already_recorded_events ... ok
+test runtime::tests::descriptor_returns_the_validated_device ... ok
+test runtime::tests::drop_finalizes_recorder_before_releasing_the_device ... ok
+test runtime::tests::drop_releases_grab_as_fallback ... ok
+test runtime::tests::einterrupt_is_actionable_and_releases ... ok
+test runtime::tests::eintr_with_stop_flag_is_graceful_and_leaves_the_device_open ... ok
+test runtime::tests::eof_releases_grab_closes_and_stops ... ok
+test runtime::tests::fatal_path_orders_finish_before_ungrab_before_close ... ok
+test runtime::tests::grab_is_checked_idempotent_and_rejected_after_step_or_shutdown ... ok
+test runtime::tests::fatal_resync_cleanup_with_failed_ungrab_releases_once_and_closes ... ok
+test runtime::tests::grab_is_issued_after_preparation_and_failure_cleans_up ... ok
+test runtime::tests::invalid_timeval_is_fatal ... ok
+test runtime::tests::open_of_missing_device_is_actionable ... ok
+test runtime::tests::open_permission_denied_is_actionable ... ok
+test runtime::tests::open_rejects_non_candidate_with_reasons ... ok
+test runtime::tests::open_sets_monotonic_clock_before_grab_and_read ... ok
+test runtime::tests::partial_read_is_fatal_and_actionable ... ok
+test runtime::tests::open_validates_and_runs_the_same_fd ... ok
+test runtime::tests::recorder_failure_is_fatal_and_releases_the_grab ... ok
+test runtime::tests::recorder_records_every_event_before_feed_including_drained_ones ... ok
+test runtime::tests::resync_drains_the_rest_of_the_read_batch ... ok
+test runtime::tests::resync_failure_degrades_releases_grab_and_stops_frames ... ok
+test runtime::tests::short_key_state_during_resync_fails_closed_with_no_frame ... ok
+test runtime::tests::shutdown_finalizes_the_recorder_and_is_idempotent ... ok
+test runtime::tests::shutdown_is_idempotent_and_releases_in_order ... ok
+test runtime::tests::shutdown_with_failed_ungrab_reports_error_and_releases_once ... ok
+test runtime::tests::shutdown_with_finish_failure_reports_it_and_still_releases_in_order ... ok
+test runtime::tests::signal_stop_orders_finish_before_ungrab_before_close ... ok
+test runtime::tests::step_decodes_events_into_frames ... ok
+test runtime::tests::step_deferred_leaves_resources_for_the_ordered_shutdown ... ok
+test runtime::tests::step_deferred_decoder_failure_keeps_the_recorder_for_finalize ... ok
+test runtime::tests::successful_resync_publishes_a_discontinuity_frame ... ok
+test runtime::tests::timestamp_regression_is_fatal ... ok
+test signals::tests::in_flight_handler_resuming_after_teardown_is_safe_by_construction ... ok
+test signals::tests::installed_handler_records_a_stop_request_when_fired ... ok
+test signals::tests::second_install_is_rejected_and_reinstall_works_after_drop ... ok
+test snapshot::tests::construction_rejects_out_of_range_slot_counts ... ok
+test snapshot::tests::invalid_tracking_id_fails_the_snapshot ... ok
+test snapshot::tests::mt_slots_ioctl_failure_fails_the_snapshot ... ok
+test snapshot::tests::mt_slots_success_at_the_ffi_boundary_is_zero ... ok
+test snapshot::tests::mt_slots_truncates_values_that_do_not_fit_like_the_kernel ... ok
+test snapshot::tests::short_key_state_response_fails_the_snapshot ... ok
+test snapshot::tests::snapshot_is_queryable_multiple_times ... ok
+test snapshot::tests::snapshot_reads_all_slots_axes_and_buttons ... ok
+test snapshot::tests::snapshot_without_buttons_skips_key_state ... ok
+test sys::ffi::tests::fresh_install_succeeds_after_the_first_guard_is_dropped ... ok
+test sys::ffi::tests::guard_drop_restores_the_previous_dispositions_and_resets_stop_state ... ok
+test sys::ffi::tests::in_flight_handler_resuming_after_teardown_touches_only_static_memory ... ok
+test sys::ffi::tests::input_event_abi_matches_libc ... ok
+test sys::ffi::tests::open_missing_device_is_not_found ... ok
+test sys::ffi::tests::poll_revents_classification_is_explicit ... ok
+test sys::ffi::tests::read_dir_missing_path_is_not_found ... ok
+test sys::ffi::tests::real_sigint_records_the_stop_request ... ok
+test sys::ffi::tests::request_encoders_match_canonical_kernel_values ... ok
+test sys::ffi::tests::second_install_is_rejected_with_structured_error ... ok
+test sys::mock::tests::clock_id_is_recorded_in_the_log ... ok
+test sys::mock::tests::grab_is_recorded_in_the_log ... ok
+test sys::mock::tests::ioctl_mt_slots_returns_values_after_the_leading_code ... ok
+test sys::mock::tests::key_state_returns_copied_bytes_while_mt_slots_returns_unit ... ok
+test sys::mock::tests::open_close_read_round_trip ... ok
+test sys::mock::tests::open_errors_map_to_structured_variants ... ok
+test sys::mock::tests::poll_classifies_hup_nval_and_stream_readiness ... ok
+test sys::mock::tests::read_dir_serves_entries_or_failure ... ok
+test sys::requests::tests::canonical_evdev_requests ... ok
+test sys::requests::tests::parameterized_requests_follow_the_macro_layout ... ok
+test sys::requests::tests::size_encoding_is_in_bytes_not_shifted ... ok
+test sys::tests::clock_monotonic_is_the_kernel_constant ... ok
+test sys::tests::fd_ids_are_distinct_and_copyable ... ok
+test sys::tests::input_id_defaults_to_zeros ... ok
+test sys::tests::sys_error_messages_are_actionable ... ok
+
+test result: ok. 168 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/decoder.rs (target/release/deps/decoder-b0bdbb13e7c16165)
+
+running 12 tests
+test fixture_corpus_is_reader_clean_with_linux_axis_ids ... ok
+test replay_buttons_fixture_commits_buttons_atomically_with_frames ... ok
+test replay_dropped_recovery_fixture_publishes_discontinuity_frame ... ok
+test replay_ending_between_frames_finishes_cleanly ... ok
+test fixture_descriptors_are_type_b_with_slots ... ok
+test replay_ending_after_syn_dropped_fails_with_unresolved_sync_loss ... ok
+test fixture_replay_and_direct_feed_share_the_same_decoder ... ok
+test replay_missing_resolution_fixture_keeps_coordinates_unnormalized ... ok
+test replay_multi_slot_fixture_produces_expected_frames ... ok
+test replay_rejects_unreasonably_large_slot_count_header ... ok
+test replay_single_contact_fixture_produces_expected_frames ... ok
+test resync_failure_during_fixture_replay_is_fatal_and_never_emits_trusted_frames ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m11_arbiter.rs (target/release/deps/m11_arbiter-9e84dfe40b84fe42)
+
+running 6 tests
+test fixture_clean_end_and_fresh_second_interaction_leave_no_stale_state ... ok
+test fixture_diagonal_and_reversal_motion_obey_the_signed_dead_zone ... ok
+test fixture_duplicate_timestamp_holds_without_flush_and_feeds_the_next_sample ... ok
+test fixture_exact_and_over_long_gap_reanchors_discard_gap_crossing_motion ... ok
+test fixture_first_commit_preserves_full_motion_and_low_speed_stays_at_min_gain ... ok
+test replay_and_synthetic_frames_produce_identical_decisions ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m4_device.rs (target/release/deps/m4_device-8e1590d1a6ad097c)
+
+running 5 tests
+test missing_input_dir_is_an_actionable_error ... ok
+test enumerate_pick_open_step_shutdown_end_to_end ... ok
+test no_devices_is_a_clean_empty_result ... ok
+test opening_a_rejected_device_fails_with_reasons ... ok
+test resync_drains_post_boundary_lifecycles_end_to_end ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m7_arbiter.rs (target/release/deps/m7_arbiter-ceb01e1d5a065728)
+
+running 4 tests
+test replayed_below_threshold_fixture_produces_no_output ... ok
+test replayed_buttons_fixture_emits_one_click ... ok
+test replayed_motion_fixture_commits_once_drags_and_finishes ... ok
+test replay_and_synthetic_frames_produce_identical_decisions ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m8_arbiter.rs (target/release/deps/m8_arbiter-afb2a1c9f70cbd0a)
+
+running 2 tests
+test replayed_tap_fixture_emits_one_click_pair ... ok
+test replay_and_synthetic_tap_frames_produce_identical_decisions ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/m9_arbiter.rs (target/release/deps/m9_arbiter-ba5773190b50b787)
+
+running 3 tests
+test replayed_secondary_tap_fixture_emits_one_right_click_pair ... ok
+test replayed_scroll_fixture_emits_diagonal_scroll_lifecycle ... ok
+test replay_and_synthetic_frames_produce_identical_decisions ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/release/deps/touchpad_trace-5f75a159e5055a75)
+
+running 74 tests
+test error::tests::errors_are_displayable_and_source_carrying ... ok
+test event::tests::json_round_trip_uses_flat_type_field ... ok
+test event::tests::validation_accepts_kernel_style_event ... ok
+test event::tests::validation_rejects_bad_usec ... ok
+test event::tests::validation_rejects_unconvertible_time ... ok
+test header::tests::clock_serde_round_trip ... ok
+test header::tests::header_round_trips_through_json ... ok
+test header::tests::new_header_is_schema_one_monotonic ... ok
+test reader::tests::api_misuse_does_not_poison_the_reader ... ok
+test reader::tests::boolean_field_is_corrupted_line ... ok
+test reader::tests::corrupted_line_poisons_reader ... ok
+test reader::tests::empty_file_reports_empty_trace ... ok
+test reader::tests::duplicate_header_is_rejected ... ok
+test reader::tests::equal_times_are_accepted ... ok
+test reader::tests::events_iterator_stops_at_error ... ok
+test reader::tests::events_iterator_streams ... ok
+test reader::tests::exponent_form_numeric_field_is_invalid_field ... ok
+test reader::tests::failed_header_poisons_reader_and_second_line_header_is_rejected ... ok
+test reader::tests::first_line_must_be_header ... ok
+test reader::tests::fractional_numeric_field_is_invalid_field ... ok
+test reader::tests::header_only_trace_is_valid_with_zero_events ... ok
+test reader::tests::io_error_during_events_poisons_reader ... ok
+test reader::tests::io_error_during_header_poisons_reader ... ok
+test reader::tests::malformed_json_is_corrupted_line ... ok
+test reader::tests::missing_event_field_is_corrupted_line ... ok
+test reader::tests::missing_schema_version_is_corrupted_line ... ok
+test reader::tests::negative_code_is_invalid_field ... ok
+test reader::tests::negative_schema_version_is_invalid_field ... ok
+test reader::tests::negative_sec_is_invalid_field ... ok
+test reader::tests::negative_type_is_invalid_field ... ok
+test reader::tests::negative_usec_is_invalid_field ... ok
+test reader::tests::non_number_field_is_corrupted_line ... ok
+test reader::tests::non_number_schema_version_is_corrupted_line ... ok
+test reader::tests::out_of_range_usec_is_invalid_field ... ok
+test reader::tests::overflowing_type_is_invalid_field ... ok
+test reader::tests::overflowing_code_is_invalid_field ... ok
+test reader::tests::overflowing_value_is_invalid_field ... ok
+test reader::tests::read_event_before_read_header_is_invalid_state ... ok
+test reader::tests::read_header_twice_is_invalid_state ... ok
+test reader::tests::reads_header_then_events ... ok
+test reader::tests::schema_too_new_fails_explicitly ... ok
+test reader::tests::schema_too_old_fails_explicitly ... ok
+test reader::tests::schema_version_above_i64_max_is_schema_too_new ... ok
+test reader::tests::sec_above_i64_max_is_invalid_field_not_corrupted ... ok
+test reader::tests::sec_at_u64_max_is_invalid_field_not_corrupted ... ok
+test reader::tests::time_regression_is_rejected ... ok
+test reader::tests::time_regression_poisons_reader ... ok
+test reader::tests::unconvertible_timestamp_is_invalid_field ... ok
+test reader::tests::unknown_line_kind_is_rejected ... ok
+test reader::tests::unknown_optional_fields_are_ignored_for_forward_compat ... ok
+test reader::tests::value_below_i32_min_is_invalid_field ... ok
+test reader::tests::whitespace_only_first_line_is_corrupted_not_header ... ok
+test replay::tests::recording_sink_rejects_second_header ... ok
+test reader::tests::unsupported_clock_is_invalid_field ... ok
+test replay::tests::replay_forwards_header_and_events_in_order ... ok
+test replay::tests::replay_reports_sink_errors ... ok
+test replay::tests::replay_reports_trace_errors_without_calling_finish ... ok
+test time::tests::conversion_is_exact_within_range ... ok
+test time::tests::monotonic_round_trip_for_microsecond_aligned_values ... ok
+test time::tests::ordering_follows_sec_then_usec ... ok
+test time::tests::out_of_range_usec_cannot_convert ... ok
+test time::tests::overflow_cannot_convert ... ok
+test time::tests::sub_microsecond_residue_is_truncated ... ok
+test time::tests::valid_range_checks ... ok
+test writer::poisoning_tests::header_write_failure_in_new_returns_error_without_writer ... ok
+test writer::poisoning_tests::io_failure_mid_event_line_poisons_writer ... ok
+test writer::poisoning_tests::io_failure_on_line_terminator_poisons_writer ... ok
+test writer::tests::drop_without_finish_preserves_written_lines ... ok
+test writer::tests::finish_then_write_is_invalid_state ... ok
+test writer::tests::finish_twice_is_invalid_state ... ok
+test writer::tests::flush_emits_buffered_bytes ... ok
+test writer::tests::rejects_header_with_newer_schema ... ok
+test writer::tests::rejects_invalid_event_fields ... ok
+test writer::tests::writes_header_first_then_events ... ok
+
+test result: ok. 74 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/fixtures.rs (target/release/deps/fixtures-b8af4c40bfa38bf9)
+
+running 5 tests
+test all_fixture_files_exist ... ok
+test fixture_headers_describe_the_same_device_shape ... ok
+test missing_resolution_fixture_has_no_fake_resolution ... ok
+test m11_fidelity_fixture_frame_structure_is_stable ... ok
+test every_fixture_reads_with_valid_header_and_monotonic_times ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/release/deps/replay-9507dc9b15619fd2)
+
+running 4 tests
+test replay_applies_header_before_any_event ... ok
+test replay_of_header_only_trace_is_clean ... ok
+test replay_is_purely_offline_and_never_touches_devices ... ok
+test replay_forwards_every_fixture_verbatim ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/roundtrip.rs (target/release/deps/roundtrip-7da616e8c251cda1)
+
+running 6 tests
+test empty_event_list_round_trips_as_header_only_trace ... ok
+test small_trace_round_trips_exactly ... ok
+test writer_output_is_valid_json_lines ... ok
+test regressed_capture_is_preserved_by_writer_but_rejected_by_reader ... ok
+test every_fixture_round_trips_through_writer_and_reader ... ok
+test large_trace_is_streamed_line_by_line ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running unittests src/lib.rs (target/release/deps/touchpadctl-68f5c23bbd948235)
+
+running 100 tests
+test args::tests::devices_parses ... ok
+test args::tests::grab_is_rejected_for_every_command_except_record ... ok
+test args::tests::duplicate_grab_is_rejected ... ok
+test args::tests::help_documents_takeover_with_mandatory_warnings ... ok
+test args::tests::help_flag_parses ... ok
+test args::tests::inspect_parses ... ok
+test args::tests::help_warns_explicitly_about_grab_risks ... ok
+test args::tests::output_probe_parses_and_emit_is_an_explicit_opt_in ... ok
+test args::tests::no_command_is_a_usage_error ... ok
+test args::tests::replay_parses ... ok
+test args::tests::record_grab_is_explicit_opt_in ... ok
+test args::tests::takeover_confirm_text_is_exact_and_required ... ok
+test args::tests::record_parses_without_grab_by_default ... ok
+test args::tests::takeover_duplicate_flags_are_rejected ... ok
+test args::tests::takeover_duplicate_flags_of_all_five_are_rejected ... ok
+test args::tests::takeover_duration_is_validated_with_boundaries ... ok
+test args::tests::takeover_parses_with_all_mandatory_opt_ins ... ok
+test args::tests::takeover_flags_are_rejected_elsewhere ... ok
+test args::tests::takeover_profile_accepts_exactly_the_documented_set ... ok
+test args::tests::takeover_profile_is_validated ... ok
+test args::tests::takeover_requires_every_mandatory_opt_in ... ok
+test args::tests::unknown_command_or_flag_is_a_usage_error ... ok
+test args::tests::wrong_arity_is_a_usage_error ... ok
+test args::tests::takeover_requires_explicit_device_and_trace ... ok
+test cmd::devices::tests::missing_input_dir_is_actionable ... ok
+test cmd::devices::tests::no_devices_is_a_clear_result ... ok
+test cmd::inspect::tests::missing_device_is_actionable ... ok
+test cmd::devices::tests::mixed_verdicts_are_printed_and_candidate_wins ... ok
+test cmd::inspect::tests::candidate_device_is_printed_and_succeeds ... ok
+test cmd::inspect::tests::permission_denied_device_is_actionable ... ok
+test cmd::output_probe::tests::cancellation_during_countdown_maps_to_exit_8 ... ok
+test cmd::devices::tests::permission_denied_on_input_dir_is_actionable ... ok
+test cmd::inspect::tests::non_candidate_device_fails_with_reasons ... ok
+test cmd::output_probe::tests::device_pause_maps_to_exit_5 ... ok
+test cmd::output_probe::tests::prepare_failure_maps_to_the_primary_exit_code ... ok
+test cmd::output_probe::tests::dry_run_prints_the_report_and_exits_zero_without_emitting ... ok
+test cmd::output_probe::tests::termination_handler_is_installed_only_for_emitting_and_record ... ok
+test cmd::record::tests::close_failure_is_reported ... ok
+test cmd::record::tests::eintr_with_stop_flag_is_a_graceful_stop ... ok
+test cmd::record::tests::eintr_without_stop_flag_is_a_fatal_stream_error ... ok
+test cmd::record::tests::failed_ungrab_with_successful_close_is_reported ... ok
+test cmd::record::tests::decoder_failure_does_not_lose_recorded_raw_events ... ok
+test cmd::record::tests::fatal_primary_failure_combined_with_recorder_finalization_failure ... ok
+test cmd::record::tests::header_flush_precedes_grab_in_the_shared_timeline ... ok
+test cmd::record::tests::record_missing_device_is_actionable ... ok
+test cmd::record::tests::primary_stream_error_combined_with_cleanup_failure_preserves_both ... ok
+test cmd::record::tests::record_rejects_non_candidate_device_with_reasons ... ok
+test cmd::record::tests::grab_flag_grabs_the_device_explicitly ... ok
+test cmd::record::tests::header_flush_failure_issues_zero_grabs ... ok
+test cmd::record::tests::recorder_finish_failure_returns_recorder_exit_with_cleanup ... ok
+test cmd::record::tests::record_writes_events_decodes_frames_and_cleans_up ... ok
+test cmd::record::tests::recorded_trace_replays_through_the_same_decoder ... ok
+test cmd::record::tests::recorder_output_failure_is_actionable_with_zero_grabs ... ok
+test cmd::record::tests::status_writer_failure_after_recorder_attachment_uses_ordered_fallback ... ok
+test cmd::record::tests::stop_flag_stops_gracefully_with_ordered_cleanup ... ok
+test cmd::replay::tests::corrupted_trace_is_a_trace_error ... ok
+test cmd::replay::tests::dropped_recovery_fixture_fails_offline ... ok
+test cmd::replay::tests::clean_fixtures_replay_to_frames ... ok
+test cmd::replay::tests::empty_trace_replays_cleanly_with_zero_frames ... ok
+test cmd::replay::tests::missing_trace_file_is_a_trace_error ... ok
+test cmd::replay::tests::fixture_replay_smoke_single_contact ... ok
+test cmd::replay::tests::schema_too_new_trace_is_rejected ... ok
+test cmd::replay::tests::time_regression_trace_is_rejected ... ok
+test cmd::takeover::tests::capability_missing_refuses_before_recorder_and_grab ... ok
+test cmd::takeover::tests::cleanup_success_releases_owed_state_and_retry_is_a_no_op ... ok
+test cmd::takeover::tests::countdown_cancel_releases_output_finishes_recorder_closes_with_zero_grab ... ok
+test cmd::takeover::tests::device_eof_unplug_is_reported_with_ordered_cleanup ... ok
+test cmd::takeover::tests::device_open_failure_causes_no_output_preparation_or_grab ... ok
+test cmd::takeover::tests::fallback_drop_runs_ordered_cleanup ... ok
+test cmd::takeover::tests::first_output_rejection_blocks_later_output_and_cleans_up_owed_state ... ok
+test cmd::takeover::tests::grab_failure_is_reported_with_ordered_cleanup ... ok
+test cmd::takeover::tests::m11_banner_contains_all_required_claims ... ok
+test cmd::takeover::tests::gesture_pipeline_decoder_arbiter_output_without_raw_leakage ... ok
+test cmd::takeover::tests::m11_takeover_command_path_banner_before_side_effects_and_clean_deadline ... ok
+test cmd::takeover::tests::multiple_cleanup_failures_preserve_all_diagnostics_and_precedence ... ok
+test cmd::takeover::tests::output_prepare_failure_releases_session_closes_device_zero_grab ... ok
+test cmd::takeover::tests::max_duration_expires_with_idle_device_at_1_and_300_seconds ... ok
+test cmd::takeover::tests::poll_eintr_without_requested_stop_is_a_stream_failure ... ok
+test cmd::takeover::tests::poll_eintr_with_requested_stop_is_a_clean_signal_stop ... ok
+test cmd::takeover::tests::poll_nval_is_an_immediate_structured_stream_failure ... ok
+test cmd::takeover::tests::readiness_error_is_a_stream_failure ... ok
+test cmd::takeover::tests::recorder_event_failure_is_a_recorder_exit ... ok
+test cmd::takeover::tests::select_profile_m10_constructs_exact_m10_config_fidelity_disabled ... ok
+test cmd::takeover::tests::recorder_header_flush_failure_releases_output_before_device_close_zero_grab ... ok
+test cmd::takeover::tests::select_profile_m11_constructs_exact_m11_config_fidelity_enabled ... ok
+test cmd::takeover::tests::select_profile_unknown_fails_without_side_effects ... ok
+test cmd::takeover::tests::server_interruption_is_a_structured_output_fault ... ok
+test cmd::takeover::tests::status_writer_failure_during_countdown_runs_ordered_cleanup ... ok
+test cmd::takeover::tests::signal_during_loop_is_a_clean_stop ... ok
+test cmd::takeover::tests::success_startup_timeline_deadline_stop_and_ordered_cleanup ... ok
+test cmd::takeover::tests::syn_dropped_resync_failure_is_a_stream_failure ... ok
+test cmd::takeover::tests::timestamp_regression_is_a_stream_failure ... ok
+test cmd::takeover::tests::unplug_hangup_wakes_the_loop_and_cleans_up_without_waiting_for_deadline ... ok
+test cmd::takeover::tests::takeover_trace_replays_to_the_same_frames ... ok
+test cmd::output_probe::tests::emit_library_missing_maps_to_exit_4 ... ok
+test cmd::output_probe::tests::emit_send_failure_maps_to_exit_6 ... ok
+test cmd::output_probe::tests::emit_release_failure_maps_to_exit_7 ... ok
+test cmd::output_probe::tests::emit_transport_disconnect_maps_to_exit_5 ... ok
+test cmd::output_probe::tests::emit_authorization_cancelled_maps_to_exit_3 ... ok
+test cmd::output_probe::tests::emit_with_fake_backend_reports_success ... ok
+
+test result: ok. 100 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.01s
+
+     Running unittests src/main.rs (target/release/deps/touchpadctl-0919c8a9fe593c9c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cli.rs (target/release/deps/cli-63c0052fc411ca50)
+
+running 22 tests
+test devices_with_no_devices_is_clear_and_exit_4 ... ok
+test every_command_failure_has_a_stable_exit_code ... ok
+test corrupted_trace_fails_with_trace_exit_code ... ok
+test emit_and_grab_usage_rules_for_output_probe ... ok
+test grab_is_a_usage_error_for_non_record_commands ... ok
+test help_command_exits_zero_and_warns_about_grab ... ok
+test header_only_fixture_replays_cleanly ... ok
+test inspect_non_candidate_fails_with_reasons ... ok
+test fixture_replay_smoke_through_the_command_runner ... ok
+test output_probe_dry_run_reports_and_exits_zero ... ok
+test real_sigint_during_emit_is_observed_and_maps_to_exit_8 ... ok
+test real_sigterm_during_emit_is_observed_and_maps_to_exit_8 ... ok
+test record_missing_device_is_actionable ... ok
+test takeover_duplicates_of_all_five_flags_are_usage_errors ... ok
+test record_keeps_raw_events_when_the_decoder_fails ... ok
+test takeover_m11_accepted_set_is_exact_at_the_public_cli ... ok
+test signal_stop_exits_8_with_ordered_shutdown ... ok
+test takeover_m11_duplicate_and_missing_profile_are_usage_errors ... ok
+test takeover_m11_duration_limits_are_1_to_300 ... ok
+test takeover_m11_preserves_all_five_mandatory_opt_ins ... ok
+test takeover_parse_failures_cause_zero_side_effects ... ok
+test takeover_m11_fidelity_v1_public_cli_run_is_fake_backed_and_clean ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests touchpad_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests touchpad_desktop
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests touchpad_linux
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests touchpad_trace
+
+running 2 tests
+test crates/touchpad-trace/src/writer.rs - writer::TraceWriter (line 86) - compile ... ok
+test crates/touchpad-trace/src/reader.rs - reader::TraceReader (line 90) - compile ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+   Doc-tests touchpadctl
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

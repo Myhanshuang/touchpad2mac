@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "feel": {
+    "version": 1,
+    "pointer": {
+      "dead_zone_radius_mm": 0.09,
+      "tracking_speed": 1.0,
+      "min_gain": 1.0,
+      "max_gain": 2.0
+    },
+    "scroll": {
+      "min_gain": 1.0,
+      "max_gain": 1.75,
+      "axis_lock_engage_ratio": 2.5,
+      "axis_lock_release_ratio": 1.5,
+      "momentum_tau_ms": 325,
+      "momentum_start_speed_mm_per_s": 35.0,
+      "momentum_stop_speed_mm_per_s": 6.0
+    },
+    "gesture": {
+      "pinch_commit_mm": 0.8,
+      "page_swipe_commit_mm": 0.8,
+      "multi_swipe_commit_mm": 2.0
+    },
+    "drag": {
+      "commit_threshold_mm": 1.0,
+      "drag_lock": true
+    }
+  },
+  "gestures": {
+    "version": 1,
+    "three_finger_drag_enabled": false,
+    "bindings": {
+      "pinch-in": "passthrough",
+      "pinch-out": "passthrough",
+      "rotate-clockwise": "passthrough",
+      "rotate-counter-clockwise": "passthrough",
+      "two-finger-page-left": "page-next",
+      "two-finger-page-right": "page-previous",
+      "two-finger-page-up": "passthrough",
+      "two-finger-page-down": "passthrough",
+      "three-finger-swipe-left": "next-workspace",
+      "three-finger-swipe-right": "previous-workspace",
+      "three-finger-swipe-up": "open-overview",
+      "three-finger-swipe-down": "present-windows",
+      "four-finger-swipe-left": "passthrough",
+      "four-finger-swipe-right": "passthrough",
+      "four-finger-swipe-up": "passthrough",
+      "four-finger-swipe-down": "passthrough",
+      "edge-swipe-left": "notification-center",
+      "edge-swipe-right": "passthrough",
+      "edge-swipe-up": "passthrough",
+      "edge-swipe-down": "passthrough",
+      "thumb-three-pinch": "application-launcher",
+      "thumb-three-spread": "show-desktop",
+      "three-finger-tap": "lookup"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+# M3: touchpad-core (M1), touchpad-trace (M2) and touchpad-linux (M3) are
+# workspace members; M5 adds apps/touchpadctl (CLI vertical slice); M6 adds
+# crates/touchpad-desktop (XDG RemoteDesktop portal + libei output adapter).
+members = [
+    "crates/touchpad-core",
+    "crates/touchpad-trace",
+    "crates/touchpad-linux",
+    "crates/touchpad-desktop",
+    "apps/touchpadctl",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+# M6 re-review R6: the declared MSRV is the real minimum of the locked
+# dependency graph — zbus 5.19 (and the zvariant family) declare
+# `rust-version = 1.87`, so a manifest claiming 1.85 would be contradicted
+# by the lockfile. The gates run on rustc/cargo 1.97.1.
+rust-version = "1.87"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+serde_json = "1"
+
+# Keep the toolchain on stable Rust and fail loudly on warnings so the
+# no-hardware test matrix stays green.
+[profile.release]
+lto = true

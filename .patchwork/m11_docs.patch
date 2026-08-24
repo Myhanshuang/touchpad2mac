@@ -1,0 +1,365 @@
+*** Begin Patch
+*** Add File: docs/M11_ACCEPTANCE.md
++# M11 Acceptance — Experimental One-Finger Pointer Fidelity (`m11-fidelity-v1`)
++
++Status: **FUTURE USER-RUN PROCEDURE — WRITTEN, NOT EXECUTED**. M11 is
++implemented and its `M11_REVIEW.md` blocking findings (R1–R4) are repaired,
++but the independent re-review is **not yet passed**: M11 is **not
++review-approved, not code-complete, and not live-qualified**. This document
++is the **separate, later M11-specific user acceptance** required by
++`M11_TASK.md` §3. It must **not** be executed by the implementation or the
++review process, and M11 stays **live-unqualified** until the user performs
++the sequence below. **M10 acceptance does not qualify M11.**
++
++This document strictly separates:
++
++1. **M11 code-complete** — every offline gate passes and independent code
++   review approves the M11 implementation (`M11_TASK.md` §3/§14). As of this
++   writing this is **not yet true** (re-review pending); code completion does
++   not confer live qualification.
++2. **M10/output live qualification** — the mandatory **prerequisite** for any
++   M11 live run: M10 code approved, the M6 output-calibration evidence
++   recorded, and the ordered 10-second, 60-second, then 300-second M10
++   acceptance with `m10-linear-v1` passed (`docs/M10_ACCEPTANCE.md`).
++3. **M11 live qualification** — this document's future user-run 10/60/300-
++   second sequence with `m11-fidelity-v1`. Until it passes, M11 remains
++   `live-unqualified` and `--output-qualified` stays an operator attestation
++   rather than measurement evidence.
++
++## 1. Preconditions (every box must hold before any M11 live run)
++
++- [ ] M10 is code-approved and its static/fake-backed gates pass.
++- [ ] The user recorded the M6 output-calibration table
++      (`docs/M6_ACCEPTANCE.md` §3) and passed the ordered 10/60/300-second M10
++      acceptance with `m10-linear-v1` (`docs/M10_ACCEPTANCE.md`).
++- [ ] M11 is code-complete: `cargo fmt --all -- --check`, `cargo clippy
++      --workspace --all-targets --locked -- -D warnings`, `cargo test
++      --workspace --locked`, and `cargo test --release --workspace --locked`
++      all pass, and independent review approves the M11 implementation.
++- [ ] The experimental M11 banner was read and understood: `m11-fidelity-v1`
++      is EXPERIMENTAL, UNCALIBRATED, NOT the default, makes NO macOS-
++      equivalence claim, and NO live M11 validation has occurred.
++
++Build and run the offline gates:
++
++```text
++cargo fmt --all -- --check
++cargo clippy --workspace --all-targets --locked -- -D warnings
++cargo test --workspace --locked
++cargo test --release --workspace --locked
++```
++
++Inspect the environment (non-emitting, read-only):
++
++```text
++touchpadctl devices
++touchpadctl inspect /dev/input/eventN      # the exact touchpad node
++touchpadctl output-probe                   # dry-run: portal/libei report
++```
++
++The M11 takeover command (do not run yet — see Section 3):
++
++```text
++touchpadctl takeover DEVICE TRACE \
++  --takeover \
++  --confirm TAKEOVER \
++  --output-qualified \
++  --profile m11-fidelity-v1 \
++  --max-duration-seconds N
++```
++
++Every opt-in is mandatory and independently validated; `N` is an integer in
++`1..=300`. No zero, overflow, missing, repeated, or unlimited form is
++accepted. The command is foreground-only: no daemon, no fork/background mode,
++no autostart, no service file, no persistence, no config mutation, and no
++system-setting write. The experimental banner is printed **before** any
++device/output/recorder/countdown/grab side effect.
++
++## 2. What M11 code-complete covers vs. what the user must verify
++
++- The code claims (proven by the fake-backed automated tests): a pure,
++  platform-independent fidelity stage for committed one-finger millimeter
++  motion — a signed radial dead-zone (`0.09 mm`), a monotonic time-domain
++  velocity estimate (EMA, `20 ms` tau), a continuous bounded smoothstep gain
++  curve (`50–600 mm/s` → gain `1.0–2.0`), an explicit tracking multiplier
++  (`1.0`), and the existing per-axis subpixel remainder; `M11Profile`
++  inherits every M7–M9 value from `m10-linear-v1` without copying constants;
++  fidelity state lives in the Arbiter's atomic draft and rolls back with a
++  rejected frame; the fidelity-disabled M10 path is unchanged; the CLI accepts
++  exactly `{m10-linear-v1, m11-fidelity-v1}` and prints the experimental
++  banner before any side effect; direct synthetic frames and replay-derived
++  frames produce identical M11 decisions.
++- The user must verify (this document): the real desktop behavior with
++  `m11-fidelity-v1` — dead-zone feel, gain at slow vs. fast movement,
++  reversal/diagonal behavior, long-gap re-anchor behavior,
++  tap/tap-and-drag/drag-lock/two-finger scroll still working, and the bounded
++  10/60/300-second sequence below. Until then, M11 remains
++  **experimental/unqualified**.
++
++## 3. M11 live acceptance — exact 10 / 60 / 300-second sequence (future)
++
++Run only after every Section 1 precondition holds. Keep an external keyboard
++and mouse connected — the touchpad is grabbed exclusively — and keep a second
++terminal ready: `kill -TERM <pid>` (with `<pid>` = the takeover process id
++printed by the command) as the independent escape route. Ctrl-C in the
++takeover terminal is the primary route; the configured maximum duration is the
++automatic backstop.
++
++### 3.1 Run 1 — 10 seconds
++
++```text
++touchpadctl takeover /dev/input/eventN /tmp/m11-10s.jsonl \
++  --takeover --confirm TAKEOVER --output-qualified \
++  --profile m11-fidelity-v1 --max-duration-seconds 10
++```
++
++Checklist (pass/fail each):
++
++- [ ] Portal authorization dialog appears; approve it once.
++- [ ] The touchpad is grabbed: the system pointer stops responding to the
++      touchpad (the external mouse still works).
++- [ ] The M11 banner (experimental / uncalibrated / not the default / no
++      macOS equivalence / no live M11 validation) was printed before any
++      side effect.
++- [ ] Small jittering one-finger motion produces no pointer movement (dead
++      zone); movement resumes when it exceeds the radius.
++- [ ] Slow, consistent motion is briefly delayed until the dead-zone radius
++      is reached, then moves smoothly at roughly the M10 scale (min gain).
++- [ ] Faster motion smoothly raises pointer speed (gain curve) with no jumps,
++      and the pointer stops immediately when the finger stops (no momentum).
++- [ ] Reversal and diagonal motion behave (signed radial cancellation; both
++      axes scaled isotropically).
++- [ ] A long pause (≥ 150 ms) between movements re-anchors without a pointer
++      jump; a fresh interaction starts with no stale velocity.
++- [ ] Physical primary click and click-drag work; tap-to-click, double tap,
++      tap-and-drag, and drag lock behave as in M10.
++- [ ] Two-finger natural scroll and two-finger secondary click behave as in
++      M10.
++- [ ] After the deadline (10 s) the process exits 0 (or the documented
++      cleanup-failure code) and prints the cleanup status.
++- [ ] After the run, the physical touchpad works normally again (no residual
++      grab, no stuck button/scroll); the trace `/tmp/m11-10s.jsonl` exists
++      and replays: `touchpadctl replay /tmp/m11-10s.jsonl`.
++- [ ] The portal session closed (the KDE authorization indicator cleared).
++
++Record results in the Section 4 table. **Only after Run 1 passes** continue
++to Run 2.
++
++### 3.2 Run 2 — 60 seconds
++
++```text
++touchpadctl takeover /dev/input/eventN /tmp/m11-60s.jsonl \
++  --takeover --confirm TAKEOVER --output-qualified \
++  --profile m11-fidelity-v1 --max-duration-seconds 60
++```
++
++Same checklist as Run 1, plus:
++
++- [ ] During the run, send `kill -TERM <pid>` from the second terminal
++      (independent escape route): the process exits cleanly (0 when all
++      cleanup succeeded) and the touchpad is restored.
++- [ ] Also test Ctrl-C in the takeover terminal on another run: same clean
++      result.
++- [ ] No duplicate or missing events (no double clicks, no stuck scroll).
++
++### 3.3 Run 3 — 300 seconds (5 minutes)
++
++```text
++touchpadctl takeover /dev/input/eventN /tmp/m11-300s.jsonl \
++  --takeover --confirm TAKEOVER --output-qualified \
++  --profile m11-fidelity-v1 --max-duration-seconds 300
++```
++
++Same checklist as Run 1/2. The 5-minute run validates the bounded loop under
++prolonged idle and continuous use with the fidelity stage active.
++
++## 4. Result table
++
++| Run | Pass/Fail | Dead-zone feel | Gain vs. speed | Duplicate/missing events | Stuck button/scroll | Cleanup messages | Trace path | Deviations |
++| --- | --- | --- | --- | --- | --- | --- | --- | --- |
++| 10 s | | | | | | | | |
++| 60 s | | | | | | | | |
++| 300 s | | | | | | | | |
++| signal stop | | | | | | | | |
++
++Observations (record anything notable):
++
++```text
++________________________________________________________________________
++```
++
++## 5. Explicit non-claims
++
++M11 has **no momentum, no palm/thumb classification, no pinch/rotate/swipes,
++no Force Touch, no pressure, and no haptics**. `m11-fidelity-v1` is an
++**experimental, opt-in, uncalibrated** profile — not the default, and **not a
++macOS-equivalence claim**. **No live M11 validation has occurred.** M10
++acceptance does not qualify M11, and `--output-qualified` is an operator
++attestation, not measurement evidence. The takeover remains **foreground-only
++and bounded** (1–300 seconds); there is no daemon, no background mode, no
++autostart, and no service.
++
++## 6. Exit codes (takeover; the same bounded contract as M10 — only the
++   `--profile` value differs)
++
++Exit codes are identical to the M10 takeover contract (`docs/M10_ACCEPTANCE.md`
++§7 and the CLI help): `0` session ended (deadline reached, or
++SIGINT/SIGTERM during the loop) with ALL required cleanup succeeding; `1`
++usage / argument error; `2` device node missing / no session bus / no portal;
++`3` permission denied / authorization cancelled or refused; `4` device not a
++candidate / libei missing / protocol too old / required capability missing
++(refused before the recorder/grab); `5` output transport disconnected or
++timed out during preparation, or a server-side interruption; `6` device
++stream error / semantic-output fault / device-release failure; `7` recorder
++output/finalize failure or an output-release failure; `8` aborted by the user
++before the takeover began (nothing was grabbed, the prepared output session
++was released, the recorder finalized, the device closed); `9` unexpected /
++internal error (including status-output failure).
++
++## 7. What must change before this procedure may run
++
++- The M11 independent re-review must pass and the workspace must record M11
++  as code-complete (offline gates + review approval), and
++- the user must have satisfied the Section 1 M10/M6 prerequisites.
++
++Until then, do **not** run this procedure, do **not** run `touchpadctl
++takeover` with `--profile m11-fidelity-v1` on a machine you rely on, and do
++not begin M12.
+*** Update File: README.md
+@@
+ Re-review 2). Status of M10: **code approved (M10_REVIEW.md Re-review 1),
+ live-unqualified / pending user acceptance** — the
+-static/fake-backed gates pass, but the 10/60/300-second takeover sequence
+-and the M6 output calibration must be recorded by the user before any live
+-qualification (`docs/M10_ACCEPTANCE.md`; `--output-qualified` is an operator
+-attestation, not measurement evidence).
++static/fake-backed gates pass, but the M6 output calibration and the ordered
++10-second, 60-second, then 300-second takeover sequence must be recorded by
++the user before any live qualification (`docs/M10_ACCEPTANCE.md`;
++`--output-qualified` is an operator attestation, not measurement evidence).
++Status of M11: **implemented, under independent re-review (not yet
++review-approved); experimental, opt-in `m11-fidelity-v1`, never the default,
++no macOS equivalence claim; live-unqualified** — M11 code completion does not
++imply live qualification, and M11 stays live-unqualified until the separate,
++later M11-specific user acceptance (`docs/M11_ACCEPTANCE.md`, written, not
++executed) is passed. M10 acceptance does not qualify M11. M12 has not begun.
+ M1–M6 are approved.
+ 
+@@
+ | Crate | Role |
+ | --- | --- |
+-| `crates/touchpad-core` | Platform-agnostic types and contracts (M1, approved); **M7–M9: Interaction Arbiter + one-finger linear pointer + physical left-button lifecycle + tap/tap-and-drag/drag-lock + two-finger 2D scroll + secondary tap + buttonpad click (offline, approved)**; **M10: `m10-linear-v1` takeover profile** |
++| `crates/touchpad-core` | Platform-agnostic types and contracts (M1, approved); **M7–M9: Interaction Arbiter + one-finger linear pointer + physical left-button lifecycle + tap/tap-and-drag/drag-lock + two-finger 2D scroll + secondary tap + buttonpad click (offline, approved)**; **M10: `m10-linear-v1` takeover profile**; **M11: experimental `m11-fidelity-v1` one-finger pointer fidelity (opt-in, never default, no macOS equivalence claim, live-unqualified)** |
+ | `crates/touchpad-trace` | Versioned JSON-Lines raw trace + replay boundary (M2, approved) |
+ | `crates/touchpad-linux` | Linux device boundary, Type-B decoder, grab, runtime, recorder, signals (M3/M4/M5 approved); **M10: `TakeoverBridge` + deferred-cleanup step + `Sys::poll` bounded-readiness seam** |
+ | `crates/touchpad-desktop` | KDE Wayland output adapter: RemoteDesktop portal (zbus) + runtime-loaded libei sender transport, session lifecycle, emit pattern, environment probe (M6, approved; backend `experimental/unqualified`); **M10: reusable prepared `StreamingOutput` session + factory** |
+-| `apps/touchpadctl` | CLI: `devices`, `inspect`, `record`, `replay` (M5 approved); `output-probe [--emit]` (M6, approved); **`takeover` (M10, implemented, R1–R6 repaired, pending re-review, live-unqualified)** |
++| `apps/touchpadctl` | CLI: `devices`, `inspect`, `record`, `replay` (M5 approved); `output-probe [--emit]` (M6, approved); **`takeover` (M10 code approved, live-unqualified; M11 adds the accepted `--profile` value `m11-fidelity-v1` — experimental, live-unqualified)** |
+ 
+ ## M7: offline interaction layer (implemented; R1–R2 repaired, pending re-review)
+@@
+   (M8/M9/M11+).
+ 
++## M11: experimental one-finger pointer fidelity (implemented, under review)
++
++M11 layers an **experimental, opt-in, never-default** one-finger
++pointer-fidelity stage on the approved M7–M9 interaction policy, exposed only
++as the `m11-fidelity-v1` value of the existing mandatory `--profile` option
++(the accepted set is exactly `{m10-linear-v1, m11-fidelity-v1}`). It makes
++**no macOS equivalence claim**. The pure, platform-independent stage adds a
++signed radial dead zone, a monotonic time-domain velocity estimate, a bounded
++smoothstep gain curve, and an explicit tracking multiplier for committed
++one-finger millimeter motion; `M11Profile` inherits every M7–M9 value from
++`m10-linear-v1` without copying constants. Fidelity state lives in the
++Arbiter's atomic draft (a rejected frame rolls it back), the fidelity-disabled
++M10 path is unchanged, and the CLI prints the experimental banner before any
++device/output/recorder/countdown/grab side effect. Status: **implemented,
++under independent re-review (not yet review-approved), live-unqualified** —
++code completion does not imply live qualification; M11 stays live-unqualified
++until the separate, later user acceptance in `docs/M11_ACCEPTANCE.md`
++(written, not executed) is passed. M10 acceptance does not qualify M11. M12
++has not begun.
++
+ ## Build and test
+ 
+@@
+ hardware or real desktop validation:
+ 
+-1. **Automated tests** (`cargo test --workspace`, **792 tests**): run on any
++1. **Automated tests** (`cargo test --workspace`, **872 tests**): run on any
+    machine without `/dev/input`, root, a desktop session, a session bus, or
+    libei. They use the mockable `Sys` seam, the hand-written trace fixtures,
+@@
+ See `docs/M5_ACCEPTANCE.md` (M5), `docs/M6_ACCEPTANCE.md` (M6, including
+ the reviewer-run `--emit` measurement procedure that decides qualification),
+-and `docs/M10_ACCEPTANCE.md` (M10, the user-run 10/60/300-second takeover
++`docs/M10_ACCEPTANCE.md` (M10, the user-run 10/60/300-second takeover
+ sequence and the M6 output-calibration table that must be filled before
+-honestly passing `--output-qualified`).
++honestly passing `--output-qualified`), and `docs/M11_ACCEPTANCE.md` (M11,
++the future, **not-yet-executed** user-run acceptance for the experimental
++`m11-fidelity-v1` profile; M10 acceptance does not qualify M11).
+*** Update File: DESIGN_V2.md
+@@
+ # Touchpad Runtime — DESIGN V2（M1/M2/M3/M4 决策记录 + M5 已实现记录）
+ 
+-状态：**M1（Buildable Core Foundation）已批准**；**M2（Versioned Trace and Offline Replay Boundary）已批准**；**M3（Type-B Decoder and Mocked Resynchronization）已批准**（M3_REVIEW.md 终审通过）；**M4（Linux Device Boundary and Fail-Open Grab）已批准**（M4_REVIEW.md 终审通过，R1–R7/RR1–RR3 全部关闭）；**M5（CLI Vertical Slice and Phase 1 Handoff）已批准**（M5_REVIEW.md 终审通过）；**M6（KDE Wayland Output Backend Qualification）已批准**（M6_REVIEW.md re-review 5：M6 APPROVED FOR DEVELOPMENT；真实 bounded `--emit` 协议路径通过，backend 仍保持 experimental/unqualified，takeover 校准（相对 delta A/B、pixel scroll 测量）是 M10 的前置门，见 §17）；**M7（Arbiter 骨架、单指线性指针与物理点击，离线）已批准**（M7_REVIEW.md re-review 2，2026-08-17）；**M8（Tap、Tap-and-Drag 与 Sticky Drag Lock，离线）已批准**（M8_REVIEW.md re-review 2，2026-08-17，见 §19）；**M9（双指二维滚动与右键，离线）已批准**（M9_REVIEW.md Re-review 2，2026-08-17，见 §20；M9_TASK.md 为绑定范围与验收契约）。
++状态：**M1（Buildable Core Foundation）已批准**；**M2（Versioned Trace and Offline Replay Boundary）已批准**；**M3（Type-B Decoder and Mocked Resynchronization）已批准**（M3_REVIEW.md 终审通过）；**M4（Linux Device Boundary and Fail-Open Grab）已批准**（M4_REVIEW.md 终审通过，R1–R7/RR1–RR3 全部关闭）；**M5（CLI Vertical Slice and Phase 1 Handoff）已批准**（M5_REVIEW.md 终审通过）；**M6（KDE Wayland Output Backend Qualification）已批准**（M6_REVIEW.md re-review 5：M6 APPROVED FOR DEVELOPMENT；真实 bounded `--emit` 协议路径通过，backend 仍保持 experimental/unqualified，takeover 校准（相对 delta A/B、pixel scroll 测量）是 M10 的前置门，见 §17）；**M7（Arbiter 骨架、单指线性指针与物理点击，离线）已批准**（M7_REVIEW.md re-review 2，2026-08-17）；**M8（Tap、Tap-and-Drag 与 Sticky Drag Lock，离线）已批准**（M8_REVIEW.md re-review 2，2026-08-17，见 §19）；**M9（双指二维滚动与右键，离线）已批准**（M9_REVIEW.md Re-review 2，2026-08-17，见 §20；M9_TASK.md 为绑定范围与验收契约）；**M10（限时安全 Takeover 纵向切片）代码已批准、live-unqualified**（M10_REVIEW.md Re-review 1，2026-08-17，见 §21）；**M11（实验性一指指针保真 `m11-fidelity-v1`）已实现、独立 re-review 中、未批准、live-unqualified**（见 §22；M11_REVIEW.md 2026-08-22 的 R1–R4 修复完成，待复审；不宣称 review 通过或 live 合格）。
+ 本文是 `design.md`（未修改）与 `IMPLEMENTATION_BRIEF.md` 的工程化补充，只记录**当前已确定且已实现**的模块边界、数据契约、失败语义和后续闸门；不宣称任何尚未实现的能力。
+ 
+@@
+ ## 21. M10 — 限时安全 Takeover 纵向切片（代码已批准，live-unqualified）
+ 
+-状态：**代码已批准（2026-08-17，见 `M10_REVIEW.md` Re-review 1）**；R1–R6 已关闭：poll EINTR 停止再检查（R1）、poll revents 显式分类（R2）、release 前捕获服务器 interruption（R3）、全部五个 takeover flag 拒绝重复（R4）、真实 Left+Right 多显式 release 失败测试（R5）、真实工厂 create 惰性化/零外部副作用（R6）。静态/fake-backed 闸门全部通过。**M10 保持 live-unqualified / pending user acceptance**，直到用户按 `docs/M10_ACCEPTANCE.md` 完成 10 秒 → 60 秒 → 300 秒人工验收并记录 M6 输出校准表。M11 未开始。
++状态：**代码已批准（2026-08-17，见 `M10_REVIEW.md` Re-review 1）**；R1–R6 已关闭：poll EINTR 停止再检查（R1）、poll revents 显式分类（R2）、release 前捕获服务器 interruption（R3）、全部五个 takeover flag 拒绝重复（R4）、真实 Left+Right 多显式 release 失败测试（R5）、真实工厂 create 惰性化/零外部副作用（R6）。静态/fake-backed 闸门全部通过。**M10 保持 live-unqualified / pending user acceptance**，直到用户按 `docs/M10_ACCEPTANCE.md` 完成 10 秒 → 60 秒 → 300 秒人工验收并记录 M6 输出校准表。M11 见 §22（已实现，独立 re-review 中，未批准）。
+ 
+ ### 21.1 范围与边界
+@@
+ ### 21.9 文档化限制（不虚报）
+ 
+-- **live-unqualified**：M6 输出校准（相对 delta A/B、pixel scroll）未由用户记录前，`--output-qualified` 只是 operator attestation 而非测量证据；backend 保持 `experimental/unqualified`；M10 不写 approved，M11 未开始。
++- **live-unqualified**：M6 输出校准（相对 delta A/B、pixel scroll）未由用户记录前，`--output-qualified` 只是 operator attestation 而非测量证据；backend 保持 `experimental/unqualified`；M10 不写 approved；M11 见 §22（已实现，未批准，live-unqualified）。
+ - **不保证的清理**：`SIGKILL`、内核崩溃、断电不能运行用户态 cleanup；内核在 fd 关闭时释放 evdev grab，但有序序列只在可运行用户态代码的路径上有保证。
+ - 单设备、foreground、有界（1–300 秒）；无后台/自启。
+ - **真实工厂惰性化（M10 review R6）**：`RealStreamingOutputFactory::create()` 零外部副作用；session bus 连接与 libei dlopen 在 `prepare()`（设备 open 成功之后）经 `LazyPortal`/`LazyTransport` 发生。对象分配与外部准备分离，可观测时间线测试证明；设备 open 失败零 D-Bus/libei/output 访问且保留 device-error 优先级。
+ - `Sys::poll` 的 Linux 实现位于既有 `sys::ffi` unsafe 边界（libc::poll，文档化安全不变量）；其余新模块 `#![forbid(unsafe_code)]`。
++
++## 22. M11 — 实验性一指指针保真（`m11-fidelity-v1`）（已实现，独立 re-review 中，live-unqualified）
++
++状态：**已实现（2026-08-22）**。`M11_REVIEW.md`（2026-08-22）的 R1–R4 阻塞项已修复：R1（M11 trace/replay fixture 与直接-重放决策一致性测试）、R2（`select_profile`/banner 与 fake-backed CLI 测试）、R3（fmt/clippy 门禁）、R4（`M11Profile::new` 以 `M11ProfileError::Fidelity` 传播而非 panic）。独立 re-review **尚未通过**——本文件不宣称 M11 review 通过、不宣称 code-complete。**M11 保持 live-unqualified**，直到用户按 `docs/M11_ACCEPTANCE.md`（未来人工验收程序，**写而未执行**）完成独立的 M11 专用验收；M10 验收不使 M11 合格。M12 未开始。
++
++### 22.1 范围与边界
++
++M11 在已批准的 M7–M9/M10 交互策略之上增加**平台无关的一指指针保真阶段**，仅作用于已提交的一指毫米位移（原始 counts 永不进入；candidate/tap/scroll 归属仍基于保真前的毫米位置）。`m11-fidelity-v1` 是既有强制 `--profile` 选项的第二个接受值——接受集恰为 `{m10-linear-v1, m11-fidelity-v1}`，`m10-linear-v1` 保持 mention-first；实验性、opt-in、永不默认、**无 macOS 等价声明**。M10 的全部五个 opt-in（`--takeover`、`--confirm TAKEOVER`、`--output-qualified`、`--profile`、`--max-duration-seconds N`）与 `1..=300` 秒上界原样保留；M11 不新增 flag。
++
++### 22.2 实现事实（`M11_TASK.md` §5–§11）
++
++- `touchpad-core::fidelity`：`FidelityConfig`/`FidelityState`/`FidelityOutcome`（`Hold`/`EmitScaledPixels`/`Reanchored`）/`FidelityError` 与纯 `process` 阶段——signed radial dead-zone（0.09 mm）、单调时域速度估计（EMA，20 ms tau）、连续有界 smoothstep gain（50–600 mm/s → 1.0–2.0）、显式 tracking 倍率（1.0）、base 10 px/mm（继承 M10）；`FidelityConfigError` 覆盖非法构造，运行期非有限/溢出为 `FidelityError`，Arbiter fail-closed 映射为 `ArbiterError::NonFinite`。
++- `touchpad-core::m11`：`M11Profile` 经 `M10Profile::new()?.arbiter_config()` 继承全部 M7–M9 值并 `.with_fidelity(...)`——不复制常量、不改 `m10.rs`；R4 修复使构造错误经 `M11ProfileError::Fidelity` 传播而非 panic。
++- `arbiter` 集成：`ArbiterConfig` 增 `Option<FidelityConfig>`（默认 `None`）+ `with_fidelity`/`fidelity_config`/`is_fidelity_enabled`；`FidelityState` 存入 `ArbiterState`，参与既有 draft/copy/commit 原子性（拒绝帧回滚全部保真状态与 pixel remainder，无第二 remainder）；一个窄 `emit_pointer_delta` 模式开关——fidelity 关闭时执行既有 M10 量化分支且不调用保真代码；`Hold`/`Reanchored` 零输出并保留 remainder；clean end/replacement/discontinuity/cancellation/`release_all` 的 reset 顺序符合 `M11_TASK.md` §9。
++- `touchpadctl`：`args.rs` 接受集恰为 `{m10-linear-v1, m11-fidelity-v1}` 且 M10 mention-first、`--profile` 缺失不推断；`cmd::takeover` 引入纯 `select_profile`（M10 → 恰 M10 config、M11 → 恰 M11 config）+ `M11_EXPERIMENTAL_BANNER`（experimental/uncalibrated、非默认、无 macOS 等价声明、无 live 验证、M10 opt-in 与 1..=300 秒上界仍适用），banner 在任何 device/output/recorder/countdown/grab 副作用之前写出；fake-backed 命令/CLI 测试保留全部五个 opt-in、重复拒绝、缺 profile 与时长边界，不进入真实 takeover。
++- trace/replay：`crates/touchpad-trace/tests/fixtures/m11_fidelity.jsonl`（25 帧确定性场景：first commit、低/高速、重复时间戳、reversal、对角、恰等于/超过 `long_gap`、clean end、fresh interaction；`fixtures.rs`/`replay.rs` 注册）；`crates/touchpad-linux/tests/m11_arbiter.rs` 证明直接合成帧与 replay 派生帧产生**相同** M11 决策。
++- `docs/M11_ACCEPTANCE.md`：未来用户人工验收程序（**写而未执行**）；要求 M10/M6 前置（M10 代码批准 + M6 校准记录 + 10/60/300 秒 M10 验收），分离 M11 code-complete 与 live-qualified。
++
++### 22.3 测试与门禁
++
++- `crates/touchpad-core/tests/m11_fidelity.rs`（57 个测试）：配置边界、首调用全位移 min_gain 保留且不进下一速度分子、重复时间戳折叠不 flush、零 dt 不除不造速、long-gap 边界（−1 ns / 恰好 / 超过）、符号取消/reversal/对角、smoothstep 连续单调有界、60/120 Hz 相对差 ≤1%、tracking 各向同性、remainder 不变量/无 epsilon drain/拒绝帧回滚、clean end/replacement/discontinuity/cancellation/`release_all`、tap/tap-drag/drag-lock/双指/物理键、M10 关闭回归、profile 继承。
++- `apps/touchpadctl/src/cmd/takeover/tests.rs`：`select_profile` 纯路由（M10 恰 M10 config 且 fidelity 关闭、M11 恰 M11 config 且 fidelity 开启）、未知 profile 无副作用失败、M11 banner 五条声明；`apps/touchpadctl/tests/cli.rs`：fake-backed `m11-fidelity-v1` 公共 CLI 全 opt-in 保留、banner 先于副作用、决策经 fake 输出。
++- 门禁（Part 5 终验实测）：`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`、`cargo test --release --workspace --locked` 全部通过；workspace 共 **872** 个测试（debug 与 release 各 872，0 失败；M10 792 + M11 新增 80，含 core `m11_fidelity` 57、linux `m11_arbiter` 6、`M11Profile` 单元与 `select_profile`/banner/fake-backed CLI 用例）。
++- 无新依赖、无新 `unsafe`（`touchpad-core` 保持 `#![forbid(unsafe_code)]`）、`m10.rs` 未修改；无 live 命令/真实设备/portal/libei 副作用；无凭据写入变更文本。
+*** Update File: MILESTONES.md
+@@
+ ## M10 — 限时安全 Takeover 纵向切片（在 PHASE2_PLAN.md §5 定义）
+ 
+-**(已实现，2026-08-17；**M10_REVIEW.md R1–R6 修复（2026-08-17）：poll EINTR 停止再检查、poll revents 显式分类、release 前捕获服务器 interruption、全部五个 takeover flag 拒绝重复、真实 Left+Right 多显式 release 失败测试、真实工厂 create 惰性化**；静态/fake-backed 闸门全部通过，待外部 re-review；live-unqualified / pending user acceptance——用户按 `docs/M10_ACCEPTANCE.md` 完成 10/60/300 秒验收并记录 M6 校准表前不写 approved）**：第一条有界纵向切片——`explicit evdev device (EVIOCGRAB) → Type-B decoder/resync → M7–M9 Arbiter/ArbiterSink（m10-linear-v1）→ prepared portal+libei streaming OutputSink → KDE Wayland`。新增：`touchpad-core::m10`（**`m10-linear-v1`** 命名版本化 bring-up profile：1.0 mm 指针阈值、10 px/mm、tap/tap-and-drag/drag-lock（180 ms/3.0 mm/350 ms）、双指 natural scroll（10 px/mm、1.0 mm commit）、secondary tap（300 ms/3.0 mm）、buttonpad click——typed/finite/validated，非 macOS 等价声明、非生产默认、运行时不读 KDE/libinput）；`touchpad-linux::bridge`（**`TakeoverBridge`**：infallible `FrameSink` → fallible `ArbiterSink` 窄桥，存储首 fault、sticky fail-stop、同批后续帧零输出、cleanup 恰好欠的 state）+ runtime 兼容扩展（`sink_mut`/`take_sink`/`fd`/`step_deferred`——deferred-cleanup 使 fatal 错误保留 output/recorder/grab/fd 给协调器统一 shutdown）+ `Sys::poll`（有界 loop 的 bounded-readiness seam；Linux 实现在既有 unsafe FFI 边界）；`touchpad-desktop::streaming`（**`StreamingOutput`/`StreamingOutputFactory`**、`PortalStreamingOutput` 包装 M6 sink、真实/伪造工厂）；`touchpadctl takeover`（`--takeover --confirm TAKEOVER --output-qualified --profile m10-linear-v1 --max-duration-seconds N`，1–300 秒；grab 是最后一步：parse→create→open→prepare（缺能力在 recorder/grab 前拒绝）→recorder create+header flush→attach→倒计时≥3s→重查→恰好一次 grab→有界 loop（100 ms quantum、注入 clock/readiness、deadline 到期即使 idle 设备）；统一有序 shutdown：output release→recorder finalize→ungrab→close，全部 cleanup 失败结构化保留，exit 优先级确定（deadline/signal clean=0 仅当全部 cleanup 成功；countdown cancel=8）；panic 由 `TakeoverCleanup` guard 同序兜底）。`docs/M10_ACCEPTANCE.md` 为人工验收程序（写而未执行；M6 校准表必须由用户填写，`--output-qualified` 是 attestation 而非测量证据）。**执行约束**：实现只运行 offline/fake-backed 测试；reviewer 批准后用户才执行 live 测试；M10 保持 live-unqualified；M11 未开始。实现事实见 `DESIGN_V2.md` §21。workspace 共 **792** 个测试（M9 739 + M10 新增 53：core +3（m10 profile）、linux +8（bridge 4 + runtime step_deferred 2 + sys poll 分类 2）、desktop +4（streaming 2 + R3 生命周期 1 + R6 时间线 1）、touchpadctl +38（args 10 + cmd/takeover 26 + cli 集成 2））。
++**(已实现，2026-08-17；**M10_REVIEW.md R1–R6 修复（2026-08-17）：poll EINTR 停止再检查、poll revents 显式分类、release 前捕获服务器 interruption、全部五个 takeover flag 拒绝重复、真实 Left+Right 多显式 release 失败测试、真实工厂 create 惰性化**；静态/fake-backed 闸门全部通过，待外部 re-review；live-unqualified / pending user acceptance——用户按 `docs/M10_ACCEPTANCE.md` 完成 10/60/300 秒验收并记录 M6 校准表前不写 approved）**：第一条有界纵向切片——`explicit evdev device (EVIOCGRAB) → Type-B decoder/resync → M7–M9 Arbiter/ArbiterSink（m10-linear-v1）→ prepared portal+libei streaming OutputSink → KDE Wayland`。新增：`touchpad-core::m10`（**`m10-linear-v1`** 命名版本化 bring-up profile：1.0 mm 指针阈值、10 px/mm、tap/tap-and-drag/drag-lock（180 ms/3.0 mm/350 ms）、双指 natural scroll（10 px/mm、1.0 mm commit）、secondary tap（300 ms/3.0 mm）、buttonpad click——typed/finite/validated，非 macOS 等价声明、非生产默认、运行时不读 KDE/libinput）；`touchpad-linux::bridge`（**`TakeoverBridge`**：infallible `FrameSink` → fallible `ArbiterSink` 窄桥，存储首 fault、sticky fail-stop、同批后续帧零输出、cleanup 恰好欠的 state）+ runtime 兼容扩展（`sink_mut`/`take_sink`/`fd`/`step_deferred`——deferred-cleanup 使 fatal 错误保留 output/recorder/grab/fd 给协调器统一 shutdown）+ `Sys::poll`（有界 loop 的 bounded-readiness seam；Linux 实现在既有 unsafe FFI 边界）；`touchpad-desktop::streaming`（**`StreamingOutput`/`StreamingOutputFactory`**、`PortalStreamingOutput` 包装 M6 sink、真实/伪造工厂）；`touchpadctl takeover`（`--takeover --confirm TAKEOVER --output-qualified --profile m10-linear-v1 --max-duration-seconds N`，1–300 秒；grab 是最后一步：parse→create→open→prepare（缺能力在 recorder/grab 前拒绝）→recorder create+header flush→attach→倒计时≥3s→重查→恰好一次 grab→有界 loop（100 ms quantum、注入 clock/readiness、deadline 到期即使 idle 设备）；统一有序 shutdown：output release→recorder finalize→ungrab→close，全部 cleanup 失败结构化保留，exit 优先级确定（deadline/signal clean=0 仅当全部 cleanup 成功；countdown cancel=8）；panic 由 `TakeoverCleanup` guard 同序兜底）。`docs/M10_ACCEPTANCE.md` 为人工验收程序（写而未执行；M6 校准表必须由用户填写，`--output-qualified` 是 attestation 而非测量证据）。**执行约束**：实现只运行 offline/fake-backed 测试；reviewer 批准后用户才执行 live 测试；M10 保持 live-unqualified；M11 已按离线约束实施（见下条）。实现事实见 `DESIGN_V2.md` §21。workspace 共 **792** 个测试（M9 739 + M10 新增 53：core +3（m10 profile）、linux +8（bridge 4 + runtime step_deferred 2 + sys poll 分类 2）、desktop +4（streaming 2 + R3 生命周期 1 + R6 时间线 1）、touchpadctl +38（args 10 + cmd/takeover 26 + cli 集成 2））。
+ 
+-**M10 状态更新（2026-08-17）**：`reviews/M10_REVIEW.md` Re-review 1 已批准 M10 代码，R1–R6 全部关闭；仍为 `live-unqualified / pending user acceptance`，在用户完成 M6 校准记录与 10/60/300 秒真机序列前不得进入 M11。
++**M10 状态更新（2026-08-17）**：`reviews/M10_REVIEW.md` Re-review 1 已批准 M10 代码，R1–R6 全部关闭；仍为 `live-unqualified / pending user acceptance`——用户完成 M6 校准记录与 10/60/300 秒真机序列前不得宣称 M10 live 合格。M11 已按离线约束实施（见下条），其 live 验收独立于 M10。
+ 
++## M11 — 实验性一指指针保真（`m11-fidelity-v1`）（在 PHASE2_PLAN.md §5 定义）
++
++**(已实现，2026-08-22；`M11_REVIEW.md` R1–R4 修复完成；独立 re-review 中——未批准、未 code-complete；live-unqualified / 待独立的 M11 专用用户验收——代码完成不意味着 live 合格，M10 验收不使 M11 合格，M12 未开始）**：在已批准的 M7–M9/M10 交互策略之上增加平台无关的一指指针保真阶段（signed radial dead-zone 0.09 mm、20 ms tau 单调时域速度 EMA、150 ms 含边界 long-gap、50–600 mm/s → gain 1.0–2.0 smoothstep、tracking 倍率 1.0、base 10 px/mm 继承 M10）。`M11Profile` 从 `M10Profile` 继承全部 M7–M9 值（不复制常量、不改 `m10.rs`）；`FidelityState` 存入 `ArbiterState` 参与既有 draft/commit 原子性（拒绝帧回滚），fidelity 关闭时 M10 分支不变；`touchpadctl --profile` 接受集恰为 `{m10-linear-v1, m11-fidelity-v1}`（M10 mention-first），纯 `select_profile` + 实验 banner（experimental/uncalibrated、非默认、无 macOS 等价声明、无 live 验证、M10 五个 opt-in 与 1..=300 秒上界仍适用）在任何副作用之前写出；确定性 trace fixture `m11_fidelity.jsonl`（25 帧：first commit/低高速/重复时间戳/reversal/对角/恰等于与超过 long-gap/clean end/fresh interaction）+ 直接-重放决策一致性测试；`docs/M11_ACCEPTANCE.md` 为未来用户人工验收程序（写而未执行；要求 M10/M6 前置，分离 M11 code-complete 与 live-qualified）。实现事实见 `DESIGN_V2.md` §22；workspace 共 **872** 个测试（debug/release 门禁实测，M10 792 + M11 新增 80，0 失败）。
+ ## Review 输出格式
+ 
+*** End Patch

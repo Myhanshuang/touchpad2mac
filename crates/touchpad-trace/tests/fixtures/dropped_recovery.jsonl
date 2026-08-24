@@ -1,0 +1,13 @@
+{"kind":"header","schema_version":1,"clock":"monotonic","device":{"name":"fixture dropped recovery","vendor_id":4660,"product_id":22136,"axes":{"53":{"min":0,"max":1000,"fuzz":0,"flat":0,"resolution":100},"54":{"min":0,"max":1000,"fuzz":0,"flat":0,"resolution":100}},"slot_count":10,"supports_type_b_mt":true,"has_physical_buttons":true,"profile":{"name":"default","axis_resolutions":{},"quirks":[]}}}
+{"kind":"event","sec":0,"usec":1000,"type":3,"code":47,"value":0}
+{"kind":"event","sec":0,"usec":1000,"type":3,"code":57,"value":7}
+{"kind":"event","sec":0,"usec":1000,"type":3,"code":53,"value":100}
+{"kind":"event","sec":0,"usec":1000,"type":3,"code":54,"value":100}
+{"kind":"event","sec":0,"usec":1000,"type":0,"code":0,"value":0}
+{"kind":"event","sec":0,"usec":1100,"type":0,"code":3,"value":0}
+{"kind":"event","sec":0,"usec":1100,"type":0,"code":0,"value":0}
+{"kind":"event","sec":0,"usec":1200,"type":3,"code":47,"value":0}
+{"kind":"event","sec":0,"usec":1200,"type":3,"code":57,"value":7}
+{"kind":"event","sec":0,"usec":1200,"type":3,"code":53,"value":120}
+{"kind":"event","sec":0,"usec":1200,"type":3,"code":54,"value":120}
+{"kind":"event","sec":0,"usec":1200,"type":0,"code":0,"value":0}

@@ -1,0 +1,20 @@
+[package]
+name = "touchpad-linux"
+description = "Linux-specific raw event boundary, Type-B multitouch slot decoder, and mocked resynchronization (M3); device enumeration, evdev syscall seam, EVIOCGRAB guard and real SYN_DROPPED snapshot adapter (M4)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+touchpad-core = { path = "../touchpad-core" }
+touchpad-trace = { path = "../touchpad-trace" }
+thiserror = { workspace = true }
+
+# The only system dependency: C `input_*` struct layouts and the raw
+# open/read/ioctl/close syscalls behind the mockable `sys` seam (M4). It is
+# used exclusively by the Linux-only FFI adapter (`sys::ffi`); the rest of the
+# crate — including every test — is platform-independent and never touches
+# real devices.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "=0.2.186"

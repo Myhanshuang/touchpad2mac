@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "feel": {
+    "version": 1,
+    "pointer": {
+      "dead_zone_radius_mm": 0.06,
+      "tracking_speed": 1.25,
+      "min_gain": 1.05,
+      "max_gain": 2.9
+    },
+    "scroll": {
+      "min_gain": 1.0,
+      "max_gain": 1.75,
+      "axis_lock_engage_ratio": 1.6,
+      "axis_lock_release_ratio": 1.2,
+      "momentum_tau_ms": 325,
+      "momentum_start_speed_mm_per_s": 35.0,
+      "momentum_stop_speed_mm_per_s": 6.0
+    },
+    "gesture": {
+      "pinch_commit_mm": 0.8,
+      "page_swipe_commit_mm": 0.8,
+      "multi_swipe_commit_mm": 2.0
+    },
+    "drag": {
+      "commit_threshold_mm": 0.8,
+      "drag_lock": false
+    }
+  },
+  "gestures": {
+    "version": 1,
+    "three_finger_drag_enabled": true,
+    "bindings": {
+      "pinch-in": "disabled",
+      "pinch-out": "disabled",
+      "rotate-clockwise": "disabled",
+      "rotate-counter-clockwise": "disabled",
+      "two-finger-page-left": "disabled",
+      "two-finger-page-right": "disabled",
+      "two-finger-page-up": "disabled",
+      "two-finger-page-down": "disabled",
+      "three-finger-swipe-left": "disabled",
+      "three-finger-swipe-right": "disabled",
+      "three-finger-swipe-up": "disabled",
+      "three-finger-swipe-down": "disabled",
+      "four-finger-swipe-left": "next-workspace",
+      "four-finger-swipe-right": "previous-workspace",
+      "four-finger-swipe-up": "open-overview",
+      "four-finger-swipe-down": "close-overview",
+      "edge-swipe-left": "disabled",
+      "edge-swipe-right": "disabled",
+      "edge-swipe-up": "disabled",
+      "edge-swipe-down": "disabled",
+      "thumb-three-pinch": "application-launcher",
+      "thumb-three-spread": "show-desktop",
+      "three-finger-tap": "disabled"
+    }
+  }
+}
