@@ -13,9 +13,10 @@ or an alternate cleanup path.
 ## Reviewed implementation
 
 - `m19-live-v1` uses the same complete M18 `UserSettings` / gesture policy,
-  with M19-only live-use tap refinements: one completed tap followed by motion
-  remains ordinary pointer movement; two completed taps arm the next contact
-  for drag; inherited one-finger sticky tap-and-drag lock is disabled so a
+  with libinput-style deferred tap commit: a qualifying tap release exposes
+  `ButtonDown(Left)` while holding the matching up for the 180 ms follow-up
+  window; a follow-up contact reuses that press for drag instead of generating
+  another down. Inherited one-finger sticky tap-and-drag lock is disabled so a
   committed drag releases left on the clean contact `Ended` frame. M10-M18
   profile behavior remains unchanged.
 - CLI requires, simultaneously and explicitly:
@@ -458,31 +459,23 @@ The next user live run reported two interaction mismatches:
 2. dragging application/desktop icons with three fingers could visually drift
    from the pointer and land slightly offset when the fingers were lifted.
 
-### One-finger repair
+### One-finger repair — superseded by deferred release
 
-M19 now applies an explicit `double_tap_before_drag` refinement to the inherited
-`TapConfig`. The M10-M18 policy remains unchanged.
+The earlier `double_tap_before_drag` workaround has been removed. M19 now
+follows the libinput commit model instead of adding an extra tap gesture.
 
-- first qualifying tap -> one complete click pulse and a one-tap follow-up
-  chain;
-- if the next contact moves across the pointer threshold before completing a
-  second tap, the chain is cancelled and the contact commits as ordinary
-  pointer movement with **no synthetic left down**;
-- if the second contact instead completes as a qualifying tap, it emits the
-  second click pulse and arms a fresh follow-up window;
-- only the following contact may commit `ButtonDown(Left) -> PointerMove` drag;
-- cancellation, replacement, physical-button competition, discontinuity and
-  follow-up expiry clear the completed-tap chain;
-- M19 still disables one-finger sticky drag lock, so the committed drag's clean
-  `Ended` frame emits the matching `ButtonUp(Left)` immediately.
-
-Dedicated M19 regressions:
-
-```text
-m19_refines_one_finger_tap_drag_and_widens_only_the_follow_up_gap PASS
-m19_single_tap_then_motion_is_plain_pointer_not_drag          PASS
-m19_double_tap_then_motion_drags_and_releases_on_clean_end    PASS
-```
+- a qualifying first tap emits `ButtonDown(Left)` only and enters the 180 ms
+  follow-up window;
+- if the window expires with no follow-up contact, the policy emits the owed
+  `ButtonUp(Left)` and the click completes;
+- if one new finger arrives inside the window, it inherits that already-held
+  left press; pointer commitment produces movement without a second down;
+- a clean second tap resolves the prior click (`Up`) and immediately starts a
+  new deferred press (`Down`), preserving multi-tap behavior;
+- physical-button competition, tracking replacement, multi-finger ownership
+  and discontinuity resolve/cancel the pending press deterministically;
+- M19 still disables one-finger sticky drag lock, so a committed tap-drag's
+  clean `Ended` frame releases left immediately.
 
 ### Three-finger drag repair
 
@@ -666,16 +659,16 @@ The recognizer was already returning to `Idle` and re-anchoring correctly.
 `m19-live-v1` now explicitly applies:
 
 ```text
-double_tap_before_drag = false
 max_tap_drag_gap       = 180 ms
 drag_lock_enabled      = false
 ```
 
 The resulting contract is:
 
-- qualifying tap -> complete click pulse at release;
-- next one-finger contact beginning at or before 180 ms may commit
-  `ButtonDown(Left) -> PointerMove` tap-and-drag;
+- qualifying tap -> deferred `ButtonDown(Left)` at release;
+- no follow-up by 180 ms -> matching `ButtonUp(Left)` completes the click;
+- next one-finger contact beginning at or before 180 ms reuses the held press
+  and may commit `PointerMove` tap-and-drag without another down;
 - a contact beginning strictly after 180 ms is ordinary pointer input;
 - committed drag releases left on its clean `Ended` frame; no sticky lock.
 

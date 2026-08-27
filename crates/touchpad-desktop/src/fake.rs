@@ -83,6 +83,13 @@ pub enum FakeWireCall {
         /// The device.
         device: DeviceId,
     },
+    /// `Transport::frame_at` — source monotonic timestamp in microseconds.
+    FrameAt {
+        /// The device.
+        device: DeviceId,
+        /// Source monotonic timestamp in microseconds.
+        time_us: u64,
+    },
     /// `Transport::disconnect`.
     Disconnect,
 }
@@ -263,6 +270,11 @@ impl Transport for FakeTransport {
 
     fn frame(&mut self, device: DeviceId) -> Result<(), DesktopOutputError> {
         self.log.push(FakeWireCall::Frame { device });
+        self.maybe_fail()
+    }
+
+    fn frame_at(&mut self, device: DeviceId, time_us: u64) -> Result<(), DesktopOutputError> {
+        self.log.push(FakeWireCall::FrameAt { device, time_us });
         self.maybe_fail()
     }
 

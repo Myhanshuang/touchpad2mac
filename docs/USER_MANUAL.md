@@ -188,20 +188,22 @@ watch 你显式传入的本地 `settings.json`。
 7. 重复同一动作 5–10 次形成感受。
 8. 记录参数值，不满意立即回退。
 
-推荐优先级：pointer tracking speed → pointer gain → scroll gain → momentum →
-axis lock → gesture thresholds → gesture action mapping。
+推荐优先级：pointer tracking speed → pointer gain → scroll gain → axis lock →
+gesture thresholds → gesture action mapping。momentum 三项当前仅为旧配置兼容字段。
 
 ### 单点 / 双击 / tap-and-drag 的安全边界
 
 实机 M19 曾观察到极短 re-touch：一次接触结束后几十毫秒内又出现新 tracking
-id。当前 M19 按 libinput 风格使用短窗口：第一次 tap 在 release 帧发出完整
-click pulse，并在 **180 ms** 内 arm 下一次单指接触；这个 follow-up 接触真正
-越过 pointer commit threshold 时按 `ButtonDown(Left) → PointerMove` 开始拖动。
-180 ms 后才落下的新接触就是普通 pointer interaction，不再继承 tap-drag 资格。
+id。当前 M19 按 libinput 风格使用 deferred release：第一次 tap 在 release 帧
+只发 `ButtonDown(Left)`，把 matching `ButtonUp` 延迟到 **180 ms** follow-up
+窗口结束。窗口内的新单指接触继承这个 held press；它真正越过 pointer commit
+threshold 时直接开始 `PointerMove`，不会再发第二个 `ButtonDown`。180 ms 内
+没有 follow-up 时才发 `ButtonUp`，完成普通 click。
 
-因此当前语义是：`单击 → 很快再次落指并滑动 = tap-and-drag`；如果中间停顿超过
-180 ms，后续滑动就是普通移动。tracking-id replacement、取消、缺坐标或超时
-都会清掉资格，不会把旧点击带到后续操作。
+因此当前语义是：`tap release → 很快再次落指并滑动 = 复用原 press 的
+tap-and-drag`；如果中间停顿超过 180 ms，第一次 tap 先完成 click，后续滑动
+就是普通移动。tracking-id replacement、取消、缺坐标、多指竞争或物理按键
+都会显式解决 pending press，不会把旧点击带到后续操作。
 
 `m19-live-v1` 还额外关闭了单指 tap-and-drag 的 sticky drag lock。真实 drag
 一旦发生，手指 clean lift 的 `Ended` 帧就立即输出 `ButtonUp(Left)`；不会再

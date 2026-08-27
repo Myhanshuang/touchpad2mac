@@ -49,7 +49,9 @@
 
 use std::time::{Duration, Instant};
 
-use touchpad_core::{MouseButton, OutputError, OutputEvent, OutputFrameError, OutputSink};
+use touchpad_core::{
+    Monotonic, MouseButton, OutputError, OutputEvent, OutputFrameError, OutputSink,
+};
 
 use crate::capabilities::{libei_capability_bits, Capability, OutputCapabilities};
 use crate::error::DesktopOutputError;
@@ -533,6 +535,21 @@ impl<P: Portal, T: Transport> PortalOutputSink<P, T> {
         self.transport.frame(device)
     }
 
+    fn send_at(
+        &mut self,
+        event: &OutputEvent,
+        timestamp: Monotonic,
+    ) -> Result<(), DesktopOutputError> {
+        if !self.send_unframed(event)? {
+            return Ok(());
+        }
+        let device = self.device.ok_or_else(|| {
+            DesktopOutputError::Internal("framing without a resumed device".to_string())
+        })?;
+        self.transport
+            .frame_at(device, timestamp.as_nanos() / 1_000)
+    }
+
     /// Commits exactly two wire-bearing semantic events as one libei logical
     /// hardware frame. Used only for drag ownership edges paired with pointer
     /// motion (`Down -> Move` or `Move -> Up`). A tap pulse (`Down -> Up`) is
@@ -542,6 +559,7 @@ impl<P: Portal, T: Transport> PortalOutputSink<P, T> {
         &mut self,
         first: &OutputEvent,
         second: &OutputEvent,
+        timestamp: Option<Monotonic>,
     ) -> Result<(), OutputFrameError> {
         for (index, event) in [first, second].into_iter().enumerate() {
             if let Err(primary) = self.validate(event) {
@@ -581,7 +599,13 @@ impl<P: Portal, T: Transport> PortalOutputSink<P, T> {
                 primary: OutputError::Io("libei drag frame lost its active device".to_string()),
             });
         };
-        if let Err(error) = self.transport.frame(device) {
+        let frame_result = match timestamp {
+            Some(timestamp) => self
+                .transport
+                .frame_at(device, timestamp.as_nanos() / 1_000),
+            None => self.transport.frame(device),
+        };
+        if let Err(error) = frame_result {
             return Err(OutputFrameError {
                 failed_index: 1,
                 accepted_prefix: 0,
@@ -809,7 +833,7 @@ impl<P: Portal, T: Transport> OutputSink for PortalOutputSink<P, T> {
                     | (OutputEvent::PointerMove { .. }, OutputEvent::ButtonUp(_))
             )
         {
-            return self.submit_drag_pair(&events[0], &events[1]);
+            return self.submit_drag_pair(&events[0], &events[1], None);
         }
 
         for (index, event) in events.iter().enumerate() {
@@ -820,6 +844,56 @@ impl<P: Portal, T: Transport> OutputSink for PortalOutputSink<P, T> {
                     primary,
                 });
             }
+        }
+        Ok(())
+    }
+
+    fn submit_frame_at(
+        &mut self,
+        timestamp: Monotonic,
+        events: &[OutputEvent],
+    ) -> Result<(), OutputFrameError> {
+        if events.len() == 2
+            && matches!(
+                (&events[0], &events[1]),
+                (OutputEvent::ButtonDown(_), OutputEvent::PointerMove { .. })
+                    | (OutputEvent::PointerMove { .. }, OutputEvent::ButtonUp(_))
+            )
+        {
+            return self.submit_drag_pair(&events[0], &events[1], Some(timestamp));
+        }
+
+        for (index, event) in events.iter().enumerate() {
+            if let Err(primary) = self.validate(event) {
+                return Err(OutputFrameError {
+                    failed_index: index,
+                    accepted_prefix: index,
+                    primary,
+                });
+            }
+            if let Err(error) = self.pump_transport() {
+                return Err(OutputFrameError {
+                    failed_index: index,
+                    accepted_prefix: index,
+                    primary: OutputError::Io(error.to_string()),
+                });
+            }
+            if let Err(error) = self.send_at(event, timestamp) {
+                return Err(OutputFrameError {
+                    failed_index: index,
+                    accepted_prefix: index,
+                    primary: OutputError::Io(error.to_string()),
+                });
+            }
+            if let Err(error) = self.pump_transport() {
+                return Err(OutputFrameError {
+                    failed_index: index,
+                    accepted_prefix: index,
+                    primary: OutputError::Io(error.to_string()),
+                });
+            }
+            let record = self.held.record(event);
+            debug_assert!(record.is_ok());
         }
         Ok(())
     }
@@ -1046,6 +1120,36 @@ mod tests {
                     dy: -7.0,
                 },
                 FakeWireCall::Frame { device },
+            ]
+        );
+    }
+
+    #[test]
+    fn submit_frame_at_preserves_source_monotonic_timestamp() {
+        let (mut sink, device) = prepared_sink();
+        let before = sink.transport.log().len();
+
+        sink.submit_frame_at(
+            Monotonic::from_nanos(123_456_789),
+            &[OutputEvent::PointerMove {
+                dx: px(3.0),
+                dy: px(-2.0),
+            }],
+        )
+        .unwrap();
+
+        assert_eq!(
+            &sink.transport.log()[before..],
+            &[
+                FakeWireCall::PointerMotion {
+                    device,
+                    dx: 3.0,
+                    dy: -2.0,
+                },
+                FakeWireCall::FrameAt {
+                    device,
+                    time_us: 123_456,
+                },
             ]
         );
     }

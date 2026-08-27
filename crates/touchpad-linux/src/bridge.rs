@@ -138,9 +138,10 @@ impl<S: OutputSink> TakeoverBridge<S> {
         self.arbiter_sink.release_all()
     }
 
-    /// Advances M12 software momentum. Like frame forwarding, the first
-    /// arbiter/output failure is stored and the bridge becomes sticky
-    /// fail-stop; later ticks/frames are ignored by the coordinator.
+    /// Advances time-driven core policy (currently deferred tap release).
+    /// Like frame forwarding, the first arbiter/output failure is stored and
+    /// the bridge becomes sticky fail-stop; later ticks/frames are ignored by
+    /// the coordinator.
     pub fn tick(&mut self, timestamp: Monotonic) -> Result<(), ArbiterSinkError> {
         if self.stopped {
             return Err(self.fault.clone().unwrap_or(ArbiterSinkError::Faulted));

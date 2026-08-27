@@ -2102,11 +2102,9 @@ fn release_all_resets_fidelity_remainder_and_all_interaction_state() {
 
 #[test]
 fn tap_and_tap_drag_ownership_stays_pre_fidelity() {
-    // M11 must not change tap/tap-drag ownership: a qualifying tap fires its
-    // click pair at the release frame, and a follow-up contact within the
-    // window stays pending until pointer commitment begins the synthetic
-    // tap-and-drag press — all decided on raw normalized millimeters before
-    // the fidelity stage.
+    // M11 must not change tap/tap-drag ownership: a qualifying tap establishes
+    // the deferred press at release, and a follow-up contact within the
+    // window reuses that press if pointer motion commits to tap-and-drag.
     let mut arbiter = Arbiter::new(m11_cfg());
     // Quick tap: begin, small movement below the pointer threshold, end.
     let _ = arbiter
@@ -2136,9 +2134,9 @@ fn tap_and_tap_drag_ownership_stays_pre_fidelity() {
             false,
         ))
         .unwrap();
-    // The tap emits its click pair (pre-fidelity tap ownership) and nothing
-    // else — the sub-threshold motion never reached the fidelity stage.
-    assert_eq!(d.events, vec![down(), up()]);
+    // The sub-threshold motion never reached the fidelity stage; only the
+    // deferred press is exposed until the follow-up window resolves.
+    assert_eq!(d.events, vec![down()]);
     assert_eq!(d.lifecycle_after, Lifecycle::Finished);
 }
 
@@ -2273,7 +2271,7 @@ fn m8_follow_up_drag_committed_motion_flows_through_fidelity() {
         ))
         .unwrap();
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::TapDragCandidate);
-    assert!(!arbiter.is_synthetic_left_held());
+    assert!(arbiter.is_synthetic_left_held());
 
     let d = arbiter
         .frame(&frame(
@@ -2284,7 +2282,7 @@ fn m8_follow_up_drag_committed_motion_flows_through_fidelity() {
             false,
         ))
         .unwrap();
-    assert_eq!(d.events, vec![down(), move_event(20.0, 0.0)]);
+    assert_eq!(d.events, vec![move_event(20.0, 0.0)]);
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::TapDragContact);
     assert!(arbiter.is_synthetic_left_held());
 }
@@ -2325,8 +2323,8 @@ fn drag_lock_ownership_stays_pre_fidelity() {
         .unwrap();
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::FollowUpWindow);
 
-    // Follow-up contact stays pending; no synthetic press exists until the
-    // pointer interaction really commits.
+    // Follow-up contact stays pending while reusing the deferred synthetic
+    // press created by the qualifying first tap.
     let _ = arbiter
         .frame(&frame(
             4,
@@ -2337,10 +2335,10 @@ fn drag_lock_ownership_stays_pre_fidelity() {
         ))
         .unwrap();
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::TapDragCandidate);
-    assert!(!arbiter.is_synthetic_left_held());
+    assert!(arbiter.is_synthetic_left_held());
 
     // The follow-up contact commits a real drag (through fidelity, min gain),
-    // pressing left before the first committed move.
+    // reusing the deferred press for the first committed move.
     let d = arbiter
         .frame(&frame(
             5,
@@ -2350,7 +2348,7 @@ fn drag_lock_ownership_stays_pre_fidelity() {
             false,
         ))
         .unwrap();
-    assert_eq!(d.events, vec![down(), move_event(20.0, 0.0)]);
+    assert_eq!(d.events, vec![move_event(20.0, 0.0)]);
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::TapDragContact);
     assert!(arbiter.is_synthetic_left_held());
 

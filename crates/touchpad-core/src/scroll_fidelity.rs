@@ -1,4 +1,10 @@
-//! M12 two-finger scroll fidelity and software momentum.
+//! M12 two-finger scroll fidelity plus legacy kinetic-scroll primitives.
+//!
+//! The live Arbiter/takeover path uses this module for direct finger-scroll
+//! filtering only. It now ends the scroll lifecycle when the contacts lift;
+//! the momentum helpers remain available for settings compatibility and
+//! reference tests but are not driven after finger release. Kinetic
+//! continuation belongs at a higher layer that knows the scroll target.
 //!
 //! This module is pure and platform independent. It never reads a clock;
 //! callers provide [`Monotonic`] timestamps from the same domain as

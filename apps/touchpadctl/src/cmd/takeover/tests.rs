@@ -1649,11 +1649,9 @@ fn gesture_pipeline_decoder_arbiter_output_without_raw_leakage() {
         // 3. Tap: one click pair.
         down_left(),
         up_left(),
-        // 4. Tap-and-drag: first tap's click pair, then the committed
-        //    follow-up emits synthetic press before two drag moves; the lift
-        //    engages the sticky lock (no up yet).
-        down_left(),
-        up_left(),
+        // 4. Tap-and-drag: the first tap leaves a deferred synthetic press;
+        //    the follow-up reuses it for the two drag moves. The lift engages
+        //    the sticky lock (no up yet).
         down_left(),
         move_event(10.0, 0.0),
         move_event(10.0, 0.0),

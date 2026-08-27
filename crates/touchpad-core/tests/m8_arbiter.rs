@@ -160,10 +160,10 @@ fn public_tap_sequence_with_observable_phase() {
             false,
         ))
         .unwrap();
-    assert_eq!(d1.events, vec![down(), up()]);
+    assert_eq!(d1.events, vec![down()]);
     assert_eq!(d1.tap_drag_phase_after, TapDragPhase::FollowUpWindow);
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::FollowUpWindow);
-    assert!(!arbiter.is_left_held());
+    assert!(arbiter.is_left_held());
 }
 
 #[test]
@@ -212,7 +212,7 @@ fn public_tap_and_drag_with_lock_continues_and_unlocks() {
             ),
         ],
     );
-    assert_eq!(buttons(&d), vec![down(), up(), down()]);
+    assert_eq!(buttons(&d), vec![down()]);
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::LockedWithoutContact);
     assert!(arbiter.is_synthetic_left_held());
     assert!(arbiter.is_left_held());
@@ -307,8 +307,8 @@ fn public_physical_competition_in_tap_candidate() {
     );
     // Only the physical click; no synthetic tap click.
     assert_eq!(buttons(&d), vec![down(), up()]);
-    assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::Idle);
-    assert_eq!(d[1].tap_drag_phase_after, TapDragPhase::Idle);
+    assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::Cancelled);
+    assert_eq!(d[1].tap_drag_phase_after, TapDragPhase::Cancelled);
 }
 
 #[test]
@@ -359,12 +359,12 @@ fn public_physical_arbitration_during_lock() {
     let d = run_all(&mut arbiter, &[frame(5, 5, vec![], true, false)]);
     assert!(d[0].events.is_empty());
     assert!(arbiter.is_physical_left_held());
-    // Physical release while the lock still holds: no up (aggregate stays held).
+    assert!(!arbiter.is_synthetic_left_held());
+    // Physical ownership replaces the synthetic lock and releases once.
     let d = run_all(&mut arbiter, &[frame(6, 6, vec![], false, false)]);
-    assert!(d[0].events.is_empty());
-    assert!(arbiter.is_left_held());
-    // release_all ends the aggregate with exactly one up and resets.
-    assert_eq!(arbiter.release_all(), vec![up()]);
+    assert_eq!(d[0].events, vec![up()]);
+    assert!(!arbiter.is_left_held());
+    assert!(arbiter.release_all().is_empty());
     assert_eq!(arbiter.lifecycle(), Lifecycle::Idle);
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::Idle);
 }
@@ -447,7 +447,8 @@ impl OutputSink for ScriptedSink {
 
 #[test]
 fn arbiter_sink_rejected_tap_up_after_accepted_down_retries_once() {
-    // Submissions: 0 = tap down (accepted), 1 = tap up (rejected).
+    // Submissions: 0 = deferred tap down (accepted), 1 = timeout up
+    // (rejected).
     let mut adapter = ArbiterSink::new(tap_arbiter_cfg(), ScriptedSink::new(vec![1]));
     adapter
         .frame(&frame(
@@ -458,7 +459,7 @@ fn arbiter_sink_rejected_tap_up_after_accepted_down_retries_once() {
             false,
         ))
         .unwrap();
-    let err = adapter
+    adapter
         .frame(&frame(
             1,
             1,
@@ -466,6 +467,9 @@ fn arbiter_sink_rejected_tap_up_after_accepted_down_retries_once() {
             false,
             false,
         ))
+        .unwrap();
+    let err = adapter
+        .tick(Monotonic::from_nanos(400_000_002))
         .unwrap_err();
     match err {
         ArbiterSinkError::PartialSubmit {
@@ -475,9 +479,9 @@ fn arbiter_sink_rejected_tap_up_after_accepted_down_retries_once() {
             failed_event,
             primary,
         } => {
-            assert_eq!(index, 1);
-            assert_eq!(accepted_prefix, 1);
-            assert_eq!(decision_len, 2);
+            assert_eq!(index, 0);
+            assert_eq!(accepted_prefix, 0);
+            assert_eq!(decision_len, 1);
             assert_eq!(failed_event, up());
             assert!(matches!(primary, OutputError::Rejected(_)));
         }
@@ -491,7 +495,7 @@ fn arbiter_sink_rejected_tap_up_after_accepted_down_retries_once() {
     let (arbiter, sink) = adapter.into_parts();
     assert_eq!(arbiter.lifecycle(), Lifecycle::Idle);
     assert_eq!(sink.events, vec![down(), up()]);
-    assert_eq!(sink.submits, 3); // down + rejected up + retried up
+    assert_eq!(sink.submits, 3); // down + rejected timeout up + retried up
     assert!(!sink.held_left);
 }
 
@@ -548,10 +552,7 @@ fn arbiter_sink_cleanup_while_drag_locked_releases_exactly_once() {
     let (arbiter, sink) = adapter.into_parts();
     assert_eq!(arbiter.lifecycle(), Lifecycle::Idle);
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::Idle);
-    assert_eq!(
-        sink.events,
-        vec![down(), up(), down(), move_event(10.0, 0.0), up()]
-    );
+    assert_eq!(sink.events, vec![down(), move_event(10.0, 0.0), up()]);
     assert_eq!(sink.releases, 1);
     assert!(!sink.held_left);
 }
@@ -694,7 +695,7 @@ fn public_final_ended_tap_drag_commit_enters_lock_without_up() {
             ),
         ],
     );
-    assert_eq!(buttons(&d), vec![down(), up(), down()]);
+    assert_eq!(buttons(&d), vec![down()]);
     assert_eq!(moves(&d), vec![(10.0, 0.0)]);
     assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::LockedWithoutContact);
     assert!(arbiter.is_synthetic_left_held());
@@ -754,7 +755,7 @@ fn public_discontinuity_plus_simultaneous_physical_release_emits_single_up() {
         "no duplicate down while synthetic holds"
     );
     assert!(arbiter.is_physical_left_held());
-    assert!(arbiter.is_synthetic_left_held());
+    assert!(!arbiter.is_synthetic_left_held());
     let d = run_all(&mut arbiter, &[frame(6, 6, vec![], false, true)]);
     assert_eq!(buttons(&d), vec![up()]);
     assert!(!arbiter.is_synthetic_left_held());
@@ -839,9 +840,9 @@ fn public_discontinuity_began_cannot_seed_tap_or_tap_and_drag() {
             ),
         ],
     );
-    assert!(d[0].events.is_empty(), "no immediate tap-and-drag down");
+    assert_eq!(d[0].events, vec![up()], "pending tap press is cancelled");
     assert_eq!(d[0].tap_drag_phase_after, TapDragPhase::Idle);
-    assert!(buttons(&d).is_empty());
+    assert_eq!(buttons(&d), vec![up()]);
     // A later genuinely new Began starts tap policy normally.
     let d = run_all(
         &mut arbiter,
@@ -863,7 +864,7 @@ fn public_discontinuity_began_cannot_seed_tap_or_tap_and_drag() {
         ],
     );
     assert_eq!(d[0].tap_drag_phase_after, TapDragPhase::FirstTapCandidate);
-    assert_eq!(buttons(&d), vec![down(), up()]);
+    assert_eq!(buttons(&d), vec![down()]);
 }
 
 #[test]
@@ -905,7 +906,7 @@ fn public_follow_up_near_u64_max_boundaries_use_checked_elapsed() {
             ),
         ],
     );
-    assert_eq!(buttons(&d), vec![down(), up()]);
+    assert_eq!(buttons(&d), vec![down()]);
     assert!(d[2].events.is_empty());
     assert_eq!(d[2].tap_drag_phase_after, TapDragPhase::TapDragCandidate);
 
@@ -980,7 +981,7 @@ fn public_follow_up_near_u64_max_boundaries_use_checked_elapsed() {
             ),
         ],
     );
-    assert_eq!(buttons(&d), vec![down(), up()]);
+    assert_eq!(buttons(&d), vec![down()]);
     assert!(d[2].events.is_empty());
     assert_eq!(d[2].tap_drag_phase_after, TapDragPhase::TapDragCandidate);
 }

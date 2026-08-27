@@ -52,7 +52,9 @@
 
 use std::time::Duration;
 
-use touchpad_core::{DesktopAction, OutputError, OutputEvent, OutputFrameError, OutputSink};
+use touchpad_core::{
+    DesktopAction, Monotonic, OutputError, OutputEvent, OutputFrameError, OutputSink,
+};
 
 use crate::capabilities::OutputCapabilities;
 use crate::error::DesktopOutputError;
@@ -125,6 +127,14 @@ impl OutputSink for Box<dyn StreamingOutput> {
         (**self).submit_frame(events)
     }
 
+    fn submit_frame_at(
+        &mut self,
+        timestamp: Monotonic,
+        events: &[OutputEvent],
+    ) -> Result<(), OutputFrameError> {
+        (**self).submit_frame_at(timestamp, events)
+    }
+
     fn release_all(&mut self) -> Result<(), OutputError> {
         (**self).release_all()
     }
@@ -187,6 +197,40 @@ impl<T: KdeActionTransport> OutputSink for KdeActionStreamingOutput<T> {
                 index += 1;
             }
             if let Err(error) = self.inner.submit_frame(&events[start..index]) {
+                return Err(OutputFrameError {
+                    failed_index: start + error.failed_index,
+                    accepted_prefix: start + error.accepted_prefix,
+                    primary: error.primary,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn submit_frame_at(
+        &mut self,
+        timestamp: Monotonic,
+        events: &[OutputEvent],
+    ) -> Result<(), OutputFrameError> {
+        let mut index = 0;
+        while index < events.len() {
+            if let OutputEvent::DesktopAction(action) = &events[index] {
+                if let Err(primary) = self.actions.trigger(*action) {
+                    return Err(OutputFrameError {
+                        failed_index: index,
+                        accepted_prefix: index,
+                        primary,
+                    });
+                }
+                index += 1;
+                continue;
+            }
+
+            let start = index;
+            while index < events.len() && !matches!(events[index], OutputEvent::DesktopAction(_)) {
+                index += 1;
+            }
+            if let Err(error) = self.inner.submit_frame_at(timestamp, &events[start..index]) {
                 return Err(OutputFrameError {
                     failed_index: start + error.failed_index,
                     accepted_prefix: start + error.accepted_prefix,
@@ -272,6 +316,14 @@ impl<P: Portal, T: Transport> OutputSink for PortalStreamingOutput<P, T> {
 
     fn submit_frame(&mut self, events: &[OutputEvent]) -> Result<(), OutputFrameError> {
         self.inner.submit_frame(events)
+    }
+
+    fn submit_frame_at(
+        &mut self,
+        timestamp: Monotonic,
+        events: &[OutputEvent],
+    ) -> Result<(), OutputFrameError> {
+        self.inner.submit_frame_at(timestamp, events)
     }
 
     fn release_all(&mut self) -> Result<(), OutputError> {

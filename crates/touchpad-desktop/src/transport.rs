@@ -193,6 +193,14 @@ pub trait Transport {
     /// transport's monotonic clock (µs).
     fn frame(&mut self, device: DeviceId) -> Result<(), DesktopOutputError>;
 
+    /// Close a logical event frame using a source-provided monotonic
+    /// timestamp in microseconds. Transports that cannot preserve source
+    /// timing may keep the historical clock-at-send behavior by inheriting
+    /// this default implementation.
+    fn frame_at(&mut self, device: DeviceId, _time_us: u64) -> Result<(), DesktopOutputError> {
+        self.frame(device)
+    }
+
     /// Disconnect from the EIS implementation. Idempotent; terminal. On the
     /// native transport this also releases the compositor-side state
     /// (buttons/keys/scroll are reset when the connection closes).

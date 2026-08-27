@@ -997,8 +997,10 @@ M11 是 **experimental、opt-in only、永非默认**，且**不声称 macOS 等
 
 - **profile/opt-in**：`m19-live-v1` 继承同一份 M18 `UserSettings` / gesture
   policy，并增加 runtime reload；同时针对实机交互修订单指 tap-and-drag：
-  一次 tap clean release 后在 **180 ms** 内 arm 下一次单指接触；该 follow-up
-  真正越过 pointer threshold 时按 `ButtonDown(Left) → PointerMove` 开始拖拽。
+  一次 qualifying tap clean release 先发 `ButtonDown(Left)`，matching
+  `ButtonUp` 在 **180 ms** follow-up window 内 deferred；窗口内下一次单指接触
+  复用该 held press，真正越过 pointer threshold 时直接输出 `PointerMove`
+  开始拖拽，不再生成第二个 down。无 follow-up 时窗口超时才发 up 完成 click。
   严格晚于 180 ms 的接触按普通 pointer 处理。该窗口与当前 libinput
   single-finger tap-and-drag timeout 对齐。M19 同时关闭 M8 遗留的**单指 sticky
   tap-drag lock**，所以 clean `Ended` 帧立即发 `ButtonUp(Left)`，不再进入

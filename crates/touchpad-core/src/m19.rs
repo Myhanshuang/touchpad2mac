@@ -79,7 +79,6 @@ impl M19Profile {
             .cloned()
             .map(|tap| {
                 tap.without_drag_lock()
-                    .with_double_tap_before_drag(false)
                     .with_max_tap_drag_gap(M19_TAP_DRAG_GAP)
                     .map_err(M19ProfileError::Tap)
             })
@@ -156,8 +155,6 @@ mod tests {
         let m19_tap = m19.tap_config().expect("M19 keeps tap-to-click enabled");
         assert!(m18_tap.drag_lock_enabled());
         assert!(!m19_tap.drag_lock_enabled());
-        assert!(!m18_tap.double_tap_before_drag());
-        assert!(!m19_tap.double_tap_before_drag());
         assert_eq!(m19_tap.tap_enabled(), m18_tap.tap_enabled());
         assert_eq!(
             m19_tap.tap_and_drag_enabled(),
@@ -265,13 +262,17 @@ mod tests {
                 vec![contact(1, ContactState::Began, 0.0, 0.0)],
             ))
             .unwrap();
-        arbiter
+        let tapped = arbiter
             .frame(&frame(
                 1,
                 100_000_000,
                 vec![contact(1, ContactState::Ended, 0.1, 0.0)],
             ))
             .unwrap();
+        assert!(tapped
+            .events
+            .iter()
+            .any(|event| matches!(event, OutputEvent::ButtonDown(MouseButton::Left))));
 
         // The follow-up begins 70 ms after the tap release, comfortably
         // inside the M19/libinput-aligned 180 ms drag-arm window.
@@ -289,7 +290,7 @@ mod tests {
                 vec![contact(2, ContactState::Active, 12.0, 10.0)],
             ))
             .unwrap();
-        assert!(committed
+        assert!(!committed
             .events
             .iter()
             .any(|event| matches!(event, OutputEvent::ButtonDown(MouseButton::Left))));

@@ -231,8 +231,7 @@ use crate::robustness::{
     filter_frame as robustness_filter_frame, ContactRole, RobustnessConfig, RobustnessState,
 };
 use crate::scroll_fidelity::{
-    begin_momentum, process_scroll, tick_momentum, MomentumOutcome, ScrollFidelityConfig,
-    ScrollFidelityOutcome, ScrollFidelityState,
+    process_scroll, ScrollFidelityConfig, ScrollFidelityOutcome, ScrollFidelityState,
 };
 use crate::three_finger_drag::{
     process_three_finger_drag, ThreeFingerDragAction, ThreeFingerDragConfig, ThreeFingerDragState,
@@ -278,13 +277,15 @@ pub enum TapDragPhase {
     /// has competed. It may still commit to pointer motion (which wins) or
     /// end as a qualifying tap.
     FirstTapCandidate,
-    /// A qualifying first tap completed and the configured follow-up window is
-    /// open: a new valid one-finger contact beginning at or before the
-    /// deadline may start a pending tap-and-drag candidate.
+    /// A qualifying first tap released and its synthetic-left press is held
+    /// pending while the configured follow-up window is open. A new valid
+    /// one-finger contact beginning at or before the deadline may reuse that
+    /// press for tap-and-drag.
     FollowUpWindow,
-    /// A follow-up one-finger contact is active, but no synthetic left button
-    /// has been pressed yet. A real drag begins only once pointer motion
-    /// commits; a clean no-motion release becomes a second click pulse.
+    /// A follow-up one-finger contact is active while the first tap's
+    /// synthetic-left press remains held. Pointer commitment turns that held
+    /// press into a drag without another ButtonDown; a clean release resolves
+    /// the multi-tap sequence.
     TapDragCandidate,
     /// Pointer motion on the follow-up contact has committed, so synthetic
     /// left is now held and the contact owns a real tap-and-drag.
@@ -680,11 +681,6 @@ pub struct TapConfig {
     tap_enabled: bool,
     tap_and_drag_enabled: bool,
     drag_lock_enabled: bool,
-    /// When enabled, tap-and-drag requires two fully completed taps before
-    /// the next one-finger contact may commit a synthetic drag. This is an
-    /// M19 live-use refinement; earlier profiles keep the original
-    /// single-tap-then-drag trigger.
-    double_tap_before_drag: bool,
     max_tap_duration: Duration,
     max_tap_movement_mm: Millimeters,
     max_tap_drag_gap: Duration,
@@ -730,7 +726,6 @@ impl TapConfig {
             tap_enabled,
             tap_and_drag_enabled,
             drag_lock_enabled,
-            double_tap_before_drag: false,
             max_tap_duration,
             max_tap_movement_mm,
             max_tap_drag_gap,
@@ -776,25 +771,6 @@ impl TapConfig {
         }
         self.max_tap_drag_gap = gap;
         Ok(self)
-    }
-
-    /// Returns the same validated tap policy with the M19 double-tap drag
-    /// trigger enabled or disabled.
-    ///
-    /// When enabled, one completed tap followed by pointer movement remains
-    /// an ordinary pointer interaction. A second completed tap arms the drag
-    /// window; only a subsequent contact may commit tap-and-drag.
-    #[must_use]
-    pub fn with_double_tap_before_drag(mut self, enabled: bool) -> Self {
-        self.double_tap_before_drag = enabled;
-        self
-    }
-
-    /// Whether tap-and-drag requires two completed taps before the drag
-    /// contact is allowed to synthesize left-button ownership.
-    #[must_use]
-    pub const fn double_tap_before_drag(&self) -> bool {
-        self.double_tap_before_drag
     }
 
     /// Maximum duration of a one-finger contact that may still qualify as a
@@ -1261,11 +1237,6 @@ struct ArbiterState {
     /// Timestamp of the last qualifying tap's release frame (opens the
     /// follow-up window).
     tap_completed_timestamp: Option<Monotonic>,
-    /// Number of clean taps completed in the current M19 double-tap-drag
-    /// chain. Only meaningful when `TapConfig::double_tap_before_drag()` is
-    /// enabled; bounded to 0..=2. Two completed taps arm the next contact for
-    /// drag commitment.
-    tap_chain_count: u8,
     /// Whether the tap-drag / locked continuation contact committed pointer
     /// motion (a "real drag"). Sticky drag lock only engages from a real
     /// drag; the fact survives the contact's lift into
@@ -1397,7 +1368,6 @@ impl ArbiterState {
             tap_max_displacement_mm: 0.0,
             tap_began_timestamp: None,
             tap_completed_timestamp: None,
-            tap_chain_count: 0,
             drag_committed: false,
             physical_left: false,
             synthetic_left: false,
@@ -1477,10 +1447,9 @@ impl ArbiterState {
         self.tap_began_timestamp = None;
     }
 
-    /// Clears the completed-tap chain used by the M19 double-tap-before-drag
-    /// trigger. This also closes any open follow-up window timestamp.
+    /// Clears the pending tap follow-up timestamp after cancellation, expiry,
+    /// or drag commitment.
     fn clear_tap_chain(&mut self) {
-        self.tap_chain_count = 0;
         self.tap_completed_timestamp = None;
     }
 
@@ -1637,9 +1606,6 @@ impl ArbiterState {
             }
             _ => {
                 if tap.is_some_and(|t| t.tap_enabled()) && !self.physical_left {
-                    // A contact that did not begin from a live follow-up
-                    // window starts a fresh tap chain.
-                    self.tap_chain_count = 0;
                     self.tap_completed_timestamp = None;
                     self.tap_phase = TapDragPhase::FirstTapCandidate;
                     self.tap_anchor_x_mm = Some(x);
@@ -1687,24 +1653,24 @@ impl ArbiterState {
                         t.tap_enabled() && self.tap_candidate_qualifies(frame_ts, t)
                     })
                 {
-                    // Emit exactly ButtonDown(Left), ButtonUp(Left) in order
-                    // at the qualifying release frame.
-                    self.begin_synthetic(out);
-                    self.end_synthetic(out);
-                    out.diagnostics
-                        .push(tap_fired_diagnostic(tracking_id, sequence));
-                    if let Some(tap_cfg) = tap_cfg.filter(|t| t.tap_and_drag_enabled()) {
+                    if tap_cfg.is_some_and(|t| t.tap_and_drag_enabled()) {
+                        // libinput-style deferred commit: expose the press
+                        // now but keep its release pending while this same
+                        // interaction may still become a drag. Applications
+                        // therefore cannot act on a completed click before
+                        // the ambiguity is resolved.
+                        self.begin_synthetic(out);
                         self.tap_completed_timestamp = Some(frame_ts);
-                        self.tap_chain_count = if tap_cfg.double_tap_before_drag() {
-                            1
-                        } else {
-                            0
-                        };
                         self.tap_phase = TapDragPhase::FollowUpWindow;
                     } else {
+                        // Tap-only mode has no drag ambiguity to defer.
+                        self.begin_synthetic(out);
+                        self.end_synthetic(out);
                         self.tap_phase = TapDragPhase::Finished;
                         self.clear_tap_chain();
                     }
+                    out.diagnostics
+                        .push(tap_fired_diagnostic(tracking_id, sequence));
                 } else {
                     // Too long, too far, incomplete, cancelled, multi-contact,
                     // or discontinuous: no synthetic click.
@@ -1714,34 +1680,24 @@ impl ArbiterState {
                 self.clear_tap_candidate();
             }
             TapDragPhase::TapDragCandidate => {
-                // Pending follow-up never held left. Only a clean qualifying
-                // release becomes the ordinary second click; otherwise it
-                // fails closed with no button edge.
+                // The first tap's synthetic left is still held. A clean
+                // second tap closes that click and immediately starts the
+                // next pending press, matching libinput's
+                // DRAGGING_OR_DOUBLETAP transition.
                 let ended_complete = ended.is_some_and(Contact::is_complete);
                 if ended_complete
                     && tap_cfg.is_some_and(|t| {
                         t.tap_and_drag_enabled() && self.tap_candidate_qualifies(frame_ts, t)
                     })
                 {
-                    self.begin_synthetic(out);
                     self.end_synthetic(out);
+                    self.begin_synthetic(out);
                     out.diagnostics
                         .push(tap_fired_diagnostic(tracking_id, sequence));
-                    if tap_cfg
-                        .is_some_and(|t| t.double_tap_before_drag() && self.tap_chain_count == 1)
-                    {
-                        // M19: two clean tap pulses are required before drag.
-                        // The second tap arms a fresh follow-up window; no
-                        // button stays held between the second tap and the
-                        // later drag contact.
-                        self.tap_chain_count = 2;
-                        self.tap_completed_timestamp = Some(frame_ts);
-                        self.tap_phase = TapDragPhase::FollowUpWindow;
-                    } else {
-                        self.tap_phase = TapDragPhase::Finished;
-                        self.clear_tap_chain();
-                    }
+                    self.tap_completed_timestamp = Some(frame_ts);
+                    self.tap_phase = TapDragPhase::FollowUpWindow;
                 } else {
+                    self.end_synthetic(out);
                     self.tap_phase = TapDragPhase::Finished;
                     self.clear_tap_chain();
                 }
@@ -1819,9 +1775,10 @@ impl ArbiterState {
             }
             TapDragPhase::TapDragCandidate => {
                 // A replacement inside the follow-up contact is not a clean
-                // second click and has never pressed left. Drop it silently;
-                // in particular, never manufacture a held-left drag from a
-                // tracking-id bounce.
+                // second click. The first tap's deferred press is already
+                // held, so replacement must release it; in particular, never
+                // carry held-left ownership through a tracking-id bounce.
+                self.end_synthetic(out);
                 self.tap_phase = TapDragPhase::Finished;
                 self.drag_committed = false;
                 self.clear_tap_candidate();
@@ -1873,26 +1830,19 @@ impl ArbiterState {
     /// delta is emitted.
     fn prepare_pointer_commit(
         &mut self,
-        tap_cfg: Option<&TapConfig>,
+        _tap_cfg: Option<&TapConfig>,
         tracking_id: i32,
         sequence: u64,
         out: &mut DraftOutput,
     ) {
         if self.tap_phase == TapDragPhase::TapDragCandidate {
-            if tap_cfg.is_some_and(|tap| tap.double_tap_before_drag() && self.tap_chain_count < 2) {
-                // M19: one completed tap followed by motion is ordinary
-                // pointer movement. No synthetic left ownership is created.
-                self.tap_phase = TapDragPhase::Idle;
-                self.drag_committed = false;
-                self.clear_tap_candidate();
-                self.clear_tap_chain();
-                return;
-            }
+            // The first tap already owns synthetic left. Motion merely
+            // resolves the pending press as a drag; no second ButtonDown is
+            // generated.
             self.tap_phase = TapDragPhase::TapDragContact;
             self.drag_committed = true;
             self.clear_tap_candidate();
             self.clear_tap_chain();
-            self.begin_synthetic(out);
             out.diagnostics
                 .push(tap_and_drag_began_diagnostic(tracking_id, sequence));
         }
@@ -1950,20 +1900,6 @@ impl ArbiterState {
         self.two_remainder_x_px = 0.0;
         self.two_remainder_y_px = 0.0;
         self.scroll_fidelity.reset();
-    }
-
-    /// Clears the live pair/contact geometry while preserving active M12
-    /// momentum state and the existing scroll pixel remainders.
-    fn clear_two_finger_contacts_for_momentum(&mut self) {
-        self.two_finger_ids = None;
-        self.two_anchor_a = None;
-        self.two_anchor_b = None;
-        self.two_current_a = None;
-        self.two_current_b = None;
-        self.two_centroid_anchor = None;
-        self.two_centroid_current = None;
-        self.two_max_displacement_mm = 0.0;
-        self.two_began_timestamp = None;
     }
 
     /// Updates the two-finger maximum per-contact displacement with a newly
@@ -2271,25 +2207,13 @@ impl ArbiterState {
             TwoFingerPhase::CommittedScroll => {
                 match end {
                     TwoEnd::Release => {
-                        let momentum_started =
-                            if let Some(scroll_cfg) = config.scroll_fidelity_config() {
-                                begin_momentum(
-                                    scroll_cfg,
-                                    &mut self.scroll_fidelity,
-                                    frame.monotonic_timestamp,
-                                )
-                                .map_err(|_| ArbiterError::NonFinite { sequence })?
-                            } else {
-                                false
-                            };
                         self.two_phase = TwoFingerPhase::Finished;
-                        if momentum_started {
-                            // Keep the existing ScrollBegin lifecycle open and
-                            // preserve its pixel remainder while tick() owns
-                            // decay until the momentum stop threshold.
-                            self.clear_two_finger_contacts_for_momentum();
-                            return Ok(());
-                        }
+                        // libinput boundary: the input layer ends finger
+                        // scrolling when the fingers end. Kinetic continuation
+                        // belongs to the scroll consumer/toolkit, which knows
+                        // the target widget and can cancel inertia when that
+                        // context changes. Core therefore never fabricates
+                        // post-contact ScrollDelta events.
                         if self.scroll_open {
                             out.events.push(OutputEvent::ScrollEnd);
                             self.scroll_open = false;
@@ -2298,7 +2222,6 @@ impl ArbiterState {
                         }
                     }
                     TwoEnd::Cancel(reason) => {
-                        self.scroll_fidelity.cancel_momentum();
                         if self.scroll_open {
                             out.events.push(OutputEvent::ScrollEnd);
                             self.scroll_open = false;
@@ -3588,11 +3511,19 @@ impl Arbiter {
         (self.state.two_remainder_x_px, self.state.two_remainder_y_px)
     }
 
-    /// Whether M12 software momentum currently owns the open scroll
-    /// lifecycle and therefore requires monotonic [`Self::tick`] calls.
+    /// Legacy compatibility query. Core no longer owns kinetic scroll after
+    /// finger release, so this is always false.
     #[must_use]
     pub const fn is_scroll_momentum_active(&self) -> bool {
-        self.state.scroll_fidelity.momentum_active()
+        false
+    }
+
+    /// Whether a policy timer currently requires periodic monotonic
+    /// [`Self::tick`] calls. Today this is the deferred tap release window;
+    /// kinetic scroll deliberately lives above the input-policy layer.
+    #[must_use]
+    pub const fn needs_timer_tick(&self) -> bool {
+        matches!(self.state.tap_phase, TapDragPhase::FollowUpWindow)
     }
 
     /// Timestamp of the last accepted input frame. This is the evdev/trace
@@ -3752,30 +3683,6 @@ impl Arbiter {
         });
         let frame = robust_frame.as_ref().unwrap_or(frame);
 
-        // M12: momentum is an output continuation of the previous two-finger
-        // scroll, never an independent owner. Any new contact, discontinuity,
-        // or physical-button activity cancels it before the incoming frame's
-        // ownership policy runs, closing the old ScrollBegin exactly once.
-        let incoming_live_contact = frame.contacts.iter().any(|c| {
-            matches!(c.state, ContactState::Began | ContactState::Active) && c.is_complete()
-        });
-        let incoming_button_activity = frame.physical_buttons.left
-            || frame.physical_buttons.right
-            || frame.physical_buttons.middle;
-        if draft.scroll_fidelity.momentum_active()
-            && (incoming_live_contact || incoming_button_activity || frame.discontinuity)
-        {
-            draft.scroll_fidelity.reset();
-            draft.two_remainder_x_px = 0.0;
-            draft.two_remainder_y_px = 0.0;
-            if draft.scroll_open {
-                out.events.push(OutputEvent::ScrollEnd);
-                draft.scroll_open = false;
-                out.diagnostics
-                    .push(two_finger_scroll_ended_diagnostic(sequence));
-            }
-        }
-
         // 4. Physical button edges are consumed atomically with the frame and
         //    are never suppressed by cancellation, added fingers, missing
         //    coordinates, or discontinuity. The pre-frame source states
@@ -3837,40 +3744,18 @@ impl Arbiter {
                 // candidate and ends a committed scroll; the interaction owns
                 // the press (no scroll/tap output while held).
                 draft.latch_secondary_press(&mut out, sequence);
-                // Also cancel any one-finger tap candidate/follow-up
-                // (defensive: with two fingers the tap policy is already
-                // cancelled, but a physical click competes regardless).
-                match draft.tap_phase {
-                    TapDragPhase::FirstTapCandidate | TapDragPhase::TapDragCandidate => {
-                        draft.tap_phase = TapDragPhase::Idle;
-                        draft.clear_tap_candidate();
-                        draft.clear_tap_chain();
-                    }
-                    TapDragPhase::FollowUpWindow => {
-                        draft.tap_phase = TapDragPhase::Idle;
-                        draft.clear_tap_chain();
-                    }
-                    _ => {}
-                }
+                // A real button wins the tap family. In particular, a
+                // deferred tap press is released before the secondary press
+                // is exposed, preventing a transient Left+Right chord.
+                draft.cancel_tap_policy(&mut out);
             } else {
                 // Normal physical-left press: M7/M8 behavior preserved.
                 draft.physical_left = raw_left;
-                match draft.tap_phase {
-                    TapDragPhase::FirstTapCandidate | TapDragPhase::TapDragCandidate => {
-                        // A physical click competed: the tap candidate can
-                        // never fire a synthetic click.
-                        draft.tap_phase = TapDragPhase::Idle;
-                        draft.clear_tap_candidate();
-                        draft.clear_tap_chain();
-                    }
-                    TapDragPhase::FollowUpWindow => {
-                        // A physical press cancels the pending follow-up
-                        // window.
-                        draft.tap_phase = TapDragPhase::Idle;
-                        draft.clear_tap_chain();
-                    }
-                    _ => {}
-                }
+                // Transfer any pending/active synthetic tap ownership to the
+                // physical source without a wire up/down gap: physical_left
+                // is already true, so cancel_tap_policy clears synthetic
+                // ownership but does not emit a premature ButtonUp.
+                draft.cancel_tap_policy(&mut out);
                 // M9: a physical press competes with a two-finger
                 // candidate/scroll (no tap; ScrollEnd if open).
                 draft.cancel_two_finger_for_physical_press(&mut out, sequence);
@@ -3900,6 +3785,9 @@ impl Arbiter {
             draft.physical_left = raw_left;
         }
         if right_down_raw {
+            // A physical right press also wins over any pending tap press.
+            // The output ordering logic releases left before exposing right.
+            draft.cancel_tap_policy(&mut out);
             // A physical right press competes with a two-finger
             // candidate/scroll (no tap; ScrollEnd if open).
             draft.cancel_two_finger_for_physical_press(&mut out, sequence);
@@ -3946,6 +3834,9 @@ impl Arbiter {
                     None => true, // clock went backwards: fail closed
                 };
                 if expired {
+                    // No continuation arrived: commit the pending click by
+                    // releasing the synthetic press now.
+                    draft.end_synthetic(&mut out);
                     draft.tap_phase = TapDragPhase::Idle;
                     draft.clear_tap_chain();
                 }
@@ -4021,24 +3912,6 @@ impl Arbiter {
         if latched_right_up && !raw_right && !synthetic_right_prev {
             ups.push(OutputEvent::ButtonUp(MouseButton::Right));
         }
-        // The wires must end at the post-frame OR of the sources. Simulate the
-        // wires over the emitted events and check them against the
-        // authoritative post-frame aggregates; this catches any future
-        // multiplexer ordering regression in debug builds. Note a source may
-        // end without recording an edge while another source holds the wire
-        // (the up is deferred), so the draft state — not the recorded edges —
-        // is the source of truth for the end state.
-        let (wire_left, wire_right) = simulate_wire(
-            physical_prev || synthetic_prev,
-            physical_right_prev || synthetic_right_prev || latched_prev,
-            downs.iter().chain(ups.iter()),
-        );
-        debug_assert_eq!(wire_left, draft.physical_left || draft.synthetic_left);
-        debug_assert_eq!(
-            wire_right,
-            draft.physical_right || draft.synthetic_right || draft.latched_right_owned
-        );
-
         // Deterministic same-frame ordering (review M9 R4). Globally bucketing
         // every button down before policy events and every up after them is
         // correct within one owner, but wrong across an ownership handoff, so
@@ -4064,9 +3937,17 @@ impl Arbiter {
         let right_down = |e: &OutputEvent| matches!(e, OutputEvent::ButtonDown(MouseButton::Right));
         let is_scroll_end = |e: &OutputEvent| matches!(e, OutputEvent::ScrollEnd);
         let left_pulse = downs.iter().any(left_down) && ups.iter().any(left_up);
+        // Deferred tap commit can close the previous pending press and start
+        // the next pending press in the same release frame. That is an
+        // intentional Up->Down re-press, not a Down->Up tap pulse.
+        let left_repress = synthetic_prev
+            && synthetic_up
+            && synthetic_down
+            && draft.synthetic_left
+            && !draft.physical_left;
         let handoff_left_up = !left_pulse && downs.iter().any(right_down);
         let mut ordered = Vec::with_capacity(events.len() + downs.len() + ups.len());
-        if handoff_left_up {
+        if handoff_left_up || left_repress {
             ordered.extend(ups.iter().filter(|e| left_up(e)).cloned());
         }
         ordered.extend(events.iter().filter(|e| is_scroll_end(e)).cloned());
@@ -4074,8 +3955,22 @@ impl Arbiter {
         ordered.extend(events.iter().filter(|e| !is_scroll_end(e)).cloned());
         ordered.extend(
             ups.iter()
-                .filter(|e| !(handoff_left_up && left_up(e)))
+                .filter(|e| !((handoff_left_up || left_repress) && left_up(e)))
                 .cloned(),
+        );
+
+        // The wires must end at the post-frame OR of the sources. Simulate
+        // the final semantic ordering (including the deferred-tap re-press)
+        // and compare it with the authoritative post-frame aggregate state.
+        let (wire_left, wire_right) = simulate_wire(
+            physical_prev || synthetic_prev,
+            physical_right_prev || synthetic_right_prev || latched_prev,
+            ordered.iter(),
+        );
+        debug_assert_eq!(wire_left, draft.physical_left || draft.synthetic_left);
+        debug_assert_eq!(
+            wire_right,
+            draft.physical_right || draft.synthetic_right || draft.latched_right_owned
         );
 
         draft.last_sequence = Some(sequence);
@@ -4094,9 +3989,10 @@ impl Arbiter {
         })
     }
 
-    /// Advances M12 software scroll momentum using an explicitly supplied
-    /// monotonic timestamp. Core never reads a clock. The tick is atomic just
-    /// like [`Self::frame`]: a failed arithmetic step commits no state.
+    /// Advances time-driven interaction policy using an explicitly supplied
+    /// monotonic timestamp. Core never reads a clock. Finger-scroll kinetic
+    /// continuation is intentionally absent here; the current timer consumer
+    /// is deferred tap release. The tick is atomic like [`Self::frame`].
     pub fn tick(&mut self, timestamp: Monotonic) -> Result<FrameDecision, ArbiterError> {
         if let Some(previous) = self.state.last_timestamp {
             if timestamp < previous {
@@ -4107,59 +4003,33 @@ impl Arbiter {
             }
         }
 
-        let sequence = self.state.last_sequence.unwrap_or(0);
         let mut draft = self.state.clone();
         let mut events = Vec::new();
-        let mut diagnostics = Vec::new();
+        let diagnostics = Vec::new();
 
-        if draft.scroll_fidelity.momentum_active() {
-            let (Some(scroll_cfg), Some(two_cfg)) = (
-                self.config.scroll_fidelity_config(),
-                self.config.two_finger_config(),
-            ) else {
-                return Err(ArbiterError::NonFinite { sequence });
-            };
-
-            let outcome = tick_momentum(
-                scroll_cfg,
-                &mut draft.scroll_fidelity,
-                timestamp,
-                two_cfg.scroll_logical_pixels_per_mm(),
-                two_cfg.natural(),
-            )
-            .map_err(|_| ArbiterError::NonFinite { sequence })?;
-
-            let mut emit_scaled = |x: f64, y: f64| -> Result<(), ArbiterError> {
-                let (emitted_x, remainder_x) = quantize(x, draft.two_remainder_x_px);
-                let (emitted_y, remainder_y) = quantize(y, draft.two_remainder_y_px);
-                draft.two_remainder_x_px = remainder_x;
-                draft.two_remainder_y_px = remainder_y;
-                push_scroll_delta(&mut events, sequence, emitted_x, emitted_y)
-            };
-
-            match outcome {
-                MomentumOutcome::Inactive | MomentumOutcome::Hold => {}
-                MomentumOutcome::EmitScaledPixels { x, y } => emit_scaled(x, y)?,
-                MomentumOutcome::End => {
-                    if draft.scroll_open {
-                        events.push(OutputEvent::ScrollEnd);
-                        draft.scroll_open = false;
-                        diagnostics.push(two_finger_scroll_ended_diagnostic(sequence));
+        // Ticks are now policy timers only. Two-finger finger scrolling ends
+        // on contact release and core never synthesizes kinetic scroll after
+        // the fingers leave; the consumer/toolkit owns that continuation.
+        // The periodic runtime tick remains useful for libinput-style
+        // deferred tap release, which must complete even when no new evdev
+        // frame arrives after the tap.
+        if draft.tap_phase == TapDragPhase::FollowUpWindow {
+            if let (Some(tap_cfg), Some(completed)) =
+                (self.config.tap_config(), draft.tap_completed_timestamp)
+            {
+                let expired = match timestamp.duration_since(completed) {
+                    Some(elapsed) => elapsed > tap_cfg.max_tap_drag_gap(),
+                    None => true,
+                };
+                if expired {
+                    if draft.synthetic_left {
+                        draft.synthetic_left = false;
+                        if !draft.physical_left {
+                            events.push(OutputEvent::ButtonUp(MouseButton::Left));
+                        }
                     }
-                    draft.two_remainder_x_px = 0.0;
-                    draft.two_remainder_y_px = 0.0;
-                    draft.scroll_fidelity.reset();
-                }
-                MomentumOutcome::EmitAndEnd { x, y } => {
-                    emit_scaled(x, y)?;
-                    if draft.scroll_open {
-                        events.push(OutputEvent::ScrollEnd);
-                        draft.scroll_open = false;
-                        diagnostics.push(two_finger_scroll_ended_diagnostic(sequence));
-                    }
-                    draft.two_remainder_x_px = 0.0;
-                    draft.two_remainder_y_px = 0.0;
-                    draft.scroll_fidelity.reset();
+                    draft.tap_phase = TapDragPhase::Idle;
+                    draft.clear_tap_chain();
                 }
             }
         }
@@ -4387,7 +4257,7 @@ fn tap_fired_diagnostic(tracking_id: i32, sequence: u64) -> Diagnostic {
     Diagnostic::with_frame(
         DiagnosticLevel::Info,
         DiagnosticCode::TapFired,
-        format!("qualifying tap emitted its click pair (tracking id {tracking_id})"),
+        format!("qualifying tap recognized (tracking id {tracking_id})"),
         sequence,
     )
 }
@@ -4587,10 +4457,20 @@ impl<S: OutputSink> ArbiterSink<S> {
             // large relative step.  The split is source-specific: ordinary
             // one-finger tap-and-drag still retains its historical paired
             // ButtonDown + PointerMove submission.
-            self.submit_event_segment(&decision.events, 0, 1)?;
-            self.submit_event_segment(&decision.events, 1, decision.events.len())?;
+            self.submit_event_segment(frame.monotonic_timestamp, &decision.events, 0, 1)?;
+            self.submit_event_segment(
+                frame.monotonic_timestamp,
+                &decision.events,
+                1,
+                decision.events.len(),
+            )?;
         } else {
-            self.submit_event_segment(&decision.events, 0, decision.events.len())?;
+            self.submit_event_segment(
+                frame.monotonic_timestamp,
+                &decision.events,
+                0,
+                decision.events.len(),
+            )?;
         }
         Ok(decision)
     }
@@ -4626,13 +4506,17 @@ impl<S: OutputSink> ArbiterSink<S> {
     /// first half of the M19 drag-start split succeeds.
     fn submit_event_segment(
         &mut self,
+        timestamp: Monotonic,
         events: &[OutputEvent],
         start: usize,
         end: usize,
     ) -> Result<(), ArbiterSinkError> {
         debug_assert!(start <= end && end <= events.len());
         let segment = &events[start..end];
-        if let Err(error) = self.sink.submit_frame(segment) {
+        if segment.is_empty() {
+            return Ok(());
+        }
+        if let Err(error) = self.sink.submit_frame_at(timestamp, segment) {
             let accepted_in_segment = error.accepted_prefix.min(segment.len());
             for event in &segment[..accepted_in_segment] {
                 self.ack_delivered_event(event);
@@ -4671,15 +4555,20 @@ impl<S: OutputSink> ArbiterSink<S> {
         Ok(())
     }
 
-    /// Advances M12 software momentum and submits the resulting events using
-    /// the same accepted-prefix/fail-stop contract as [`Self::frame`].
+    /// Advances input-policy timers (currently deferred tap release) and
+    /// submits the resulting events using the same accepted-prefix/fail-stop
+    /// contract as [`Self::frame`]. Kinetic scroll is intentionally not
+    /// generated here: finger scrolling ends on contact release.
     pub fn tick(&mut self, timestamp: Monotonic) -> Result<FrameDecision, ArbiterSinkError> {
         if self.faulted {
             return Err(ArbiterSinkError::Faulted);
         }
         let decision = self.arbiter.tick(timestamp)?;
         let decision_len = decision.events.len();
-        if let Err(error) = self.sink.submit_frame(&decision.events) {
+        if decision.events.is_empty() {
+            return Ok(decision);
+        }
+        if let Err(error) = self.sink.submit_frame_at(timestamp, &decision.events) {
             let accepted_prefix = error.accepted_prefix.min(decision_len);
             for event in &decision.events[..accepted_prefix] {
                 self.ack_delivered_event(event);
@@ -6020,6 +5909,7 @@ mod tests {
     #[derive(Default)]
     struct FrameRecordingSink {
         frames: Vec<Vec<OutputEvent>>,
+        frame_timestamps: Vec<Monotonic>,
         submit_count: usize,
         reject_submit: Option<usize>,
         held_left: bool,
@@ -6071,6 +5961,15 @@ mod tests {
             Ok(())
         }
 
+        fn submit_frame_at(
+            &mut self,
+            timestamp: Monotonic,
+            events: &[OutputEvent],
+        ) -> Result<(), crate::output::OutputFrameError> {
+            self.frame_timestamps.push(timestamp);
+            self.submit_frame(events)
+        }
+
         fn release_all(&mut self) -> Result<(), OutputError> {
             self.held_left = false;
             Ok(())
@@ -6083,6 +5982,22 @@ mod tests {
             complete(11, 1, state, x + 5.0, 10.0),
             complete(12, 2, state, x + 10.0, 10.0),
         ]
+    }
+
+    #[test]
+    fn arbiter_sink_forwards_source_frame_timestamp() {
+        let mut adapter = ArbiterSink::new(cfg(), FrameRecordingSink::default());
+        adapter
+            .frame(&f(0, 100, vec![began(1, 0, 0.0, 0.0)]))
+            .unwrap();
+        adapter
+            .frame(&f(1, 123_456_789, vec![active(1, 0, 1.0, 0.0)]))
+            .unwrap();
+
+        assert_eq!(
+            adapter.sink().frame_timestamps,
+            vec![Monotonic::from_nanos(123_456_789)]
+        );
     }
 
     #[test]
@@ -6117,7 +6032,7 @@ mod tests {
     }
 
     #[test]
-    fn m19_one_finger_tap_drag_keeps_press_and_motion_in_same_sink_frame() {
+    fn m19_one_finger_tap_drag_reuses_deferred_press_before_motion() {
         let config = crate::M19Profile::new(crate::UserSettings::default())
             .unwrap()
             .arbiter_config()
@@ -6137,13 +6052,27 @@ mod tests {
             .frame(&f(3, 160_000_000, vec![active(2, 0, 12.0, 10.0)]))
             .unwrap();
 
-        assert!(adapter.sink().frames.iter().any(|frame| matches!(
-            frame.as_slice(),
-            [
-                OutputEvent::ButtonDown(MouseButton::Left),
-                OutputEvent::PointerMove { .. }
-            ]
-        )));
+        let down_index = adapter
+            .sink()
+            .frames
+            .iter()
+            .position(|frame| {
+                matches!(
+                    frame.as_slice(),
+                    [OutputEvent::ButtonDown(MouseButton::Left)]
+                )
+            })
+            .expect("first tap must submit the deferred press");
+        let move_index = adapter
+            .sink()
+            .frames
+            .iter()
+            .position(|frame| matches!(frame.as_slice(), [OutputEvent::PointerMove { .. }]))
+            .expect("follow-up motion must be submitted");
+        assert!(
+            down_index < move_index,
+            "deferred press must precede drag motion"
+        );
     }
 
     #[test]
@@ -6737,7 +6666,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[test]
-    fn single_tap_emits_click_pair_at_release_frame() {
+    fn single_tap_defers_release_until_follow_up_window_expires() {
         let mut a = tap_arbiter();
         let d = run(
             &mut a,
@@ -6749,10 +6678,13 @@ mod tests {
         assert!(d[0].events.is_empty());
         assert_eq!(d[0].tap_drag_phase_after, TapDragPhase::FirstTapCandidate);
         assert_eq!(d[0].lifecycle_after, Lifecycle::Candidate);
-        // Exactly ButtonDown(Left), ButtonUp(Left) in order at the release.
-        assert_eq!(d[1].events, vec![down(), up()]);
+        assert_eq!(d[1].events, vec![down()]);
         assert_eq!(d[1].tap_drag_phase_after, TapDragPhase::FollowUpWindow);
         assert_eq!(d[1].lifecycle_after, Lifecycle::Finished);
+        assert!(a.is_left_held());
+        let timeout = a.tick(Monotonic::from_nanos(400_000_002)).unwrap();
+        assert_eq!(timeout.events, vec![up()]);
+        assert_eq!(timeout.tap_drag_phase_after, TapDragPhase::Idle);
         assert!(!a.is_left_held());
     }
 
@@ -6779,16 +6711,18 @@ mod tests {
             &mut a,
             &[
                 f(0, 0, vec![began(1, 0, 0.0, 0.0)]),
-                f(1, 1, vec![ended(1, 0, 0.1, 0.0)]), // first tap: [down, up]
+                f(1, 1, vec![ended(1, 0, 0.1, 0.0)]), // first tap: pending down
                 f(2, 2, vec![began(2, 0, 1.0, 1.0)]), // follow-up pending: no button
-                f(3, 3, vec![ended(2, 0, 1.0, 1.0)]), // no-motion end: [down, up]
+                f(3, 3, vec![ended(2, 0, 1.0, 1.0)]), // close old click, pend new press
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up(), down(), up()]);
+        assert_eq!(buttons(&d), vec![down(), up(), down()]);
         assert!(d[2].events.is_empty());
         assert_eq!(d[2].tap_drag_phase_after, TapDragPhase::TapDragCandidate);
-        assert_eq!(d[3].events, vec![down(), up()]);
-        assert_eq!(d[3].tap_drag_phase_after, TapDragPhase::Finished);
+        assert_eq!(d[3].events, vec![up(), down()]);
+        assert_eq!(d[3].tap_drag_phase_after, TapDragPhase::FollowUpWindow);
+        let timeout = a.tick(Monotonic::from_nanos(400_000_004)).unwrap();
+        assert_eq!(timeout.events, vec![up()]);
     }
 
     #[test]
@@ -6804,12 +6738,14 @@ mod tests {
                 f(3, 400_000_003, vec![ended(2, 0, 1.0, 1.0)]),
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up(), down(), up()]);
-        // The second contact is an ordinary candidate (no early synthetic
-        // down) that taps on its own.
-        assert!(d[2].events.is_empty());
+        assert_eq!(buttons(&d), vec![down(), up(), down()]);
+        // Expiry releases the first pending click before the second contact
+        // starts a fresh tap candidate.
+        assert_eq!(d[2].events, vec![up()]);
         assert_eq!(d[2].tap_drag_phase_after, TapDragPhase::FirstTapCandidate);
-        assert_eq!(d[3].events, vec![down(), up()]);
+        assert_eq!(d[3].events, vec![down()]);
+        let timeout = a.tick(Monotonic::from_nanos(800_000_004)).unwrap();
+        assert_eq!(timeout.events, vec![up()]);
     }
 
     #[test]
@@ -6823,7 +6759,9 @@ mod tests {
                 f(1, 500_000_000, vec![ended(1, 0, 0.1, 0.0)]),
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up()]);
+        assert_eq!(buttons(&d), vec![down()]);
+        let timeout = a.tick(Monotonic::from_nanos(900_000_001)).unwrap();
+        assert_eq!(timeout.events, vec![up()]);
 
         // Strictly greater: no tap, no synthetic click.
         let mut a = tap_arbiter();
@@ -6921,7 +6859,7 @@ mod tests {
         );
         // Only the physical click; the tap never fires.
         assert_eq!(buttons(&d), vec![down(), up()]);
-        assert_eq!(d[1].tap_drag_phase_after, TapDragPhase::Idle);
+        assert_eq!(d[1].tap_drag_phase_after, TapDragPhase::Cancelled);
     }
 
     #[test]
@@ -6966,17 +6904,17 @@ mod tests {
             &mut a,
             &[
                 f(0, 0, vec![began(1, 0, 0.0, 0.0)]),
-                f(1, 1, vec![ended(1, 0, 0.1, 0.0)]), // first tap [down, up]
-                f(2, 2, vec![began(2, 0, 10.0, 10.0)]), // pending, no synthetic down
+                f(1, 1, vec![ended(1, 0, 0.1, 0.0)]), // first tap: pending down
+                f(2, 2, vec![began(2, 0, 10.0, 10.0)]), // inherits held left
                 f(3, 3, vec![active(2, 0, 10.8, 10.0)]), // below threshold
                 f(4, 4, vec![active(2, 0, 11.0, 10.0)]), // commit: 10 px once
                 f(5, 5, vec![active(2, 0, 11.5, 10.0)]), // continue: 5 px
                 f(6, 6, vec![ended(2, 0, 11.5, 10.0)]), // release: up
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up(), down(), up()]);
+        assert_eq!(buttons(&d), vec![down(), up()]);
         assert_eq!(moves(&d), vec![(10.0, 0.0), (5.0, 0.0)]);
-        assert_eq!(d[4].events, vec![down(), move_event(10.0, 0.0)]); // press then first delta
+        assert_eq!(d[4].events, vec![move_event(10.0, 0.0)]);
         assert_eq!(d[4].tap_drag_phase_after, TapDragPhase::TapDragContact);
         assert_eq!(d[6].events, vec![up()]);
         assert_eq!(d[6].tap_drag_phase_after, TapDragPhase::Finished);
@@ -7012,7 +6950,7 @@ mod tests {
                 f(2, 400_000_001, vec![began(2, 0, 1.0, 1.0)]),
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up()]);
+        assert_eq!(buttons(&d), vec![down()]);
         assert!(d[2].events.is_empty());
         assert_eq!(d[2].tap_drag_phase_after, TapDragPhase::TapDragCandidate);
     }
@@ -7044,12 +6982,13 @@ mod tests {
                 f(1, 1, vec![ended(1, 0, 0.1, 0.0)]),
             ],
         );
-        // Two contacts begin inside the window: no synthetic down.
+        // Two contacts begin inside the window: release the pending press and
+        // cancel tap-drag ownership.
         let d = run(
             &mut a,
             &[f(2, 2, vec![began(2, 0, 1.0, 1.0), began(3, 1, 2.0, 2.0)])],
         );
-        assert!(d[0].events.is_empty());
+        assert_eq!(d[0].events, vec![up()]);
         assert_eq!(d[0].tap_drag_phase_after, TapDragPhase::Cancelled);
     }
 
@@ -7116,12 +7055,12 @@ mod tests {
             &[
                 f(0, 0, vec![began(1, 0, 0.0, 0.0)]),
                 f(1, 1, vec![ended(1, 0, 0.1, 0.0)]),
-                f(2, 2, vec![began(2, 0, 10.0, 10.0)]), // [down]
+                f(2, 2, vec![began(2, 0, 10.0, 10.0)]), // inherits pending down
                 f(3, 3, vec![active(2, 0, 11.0, 10.0)]), // commit 10 px
                 f(4, 4, vec![ended(2, 0, 11.0, 10.0)]), // lift: no up
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up(), down()]);
+        assert_eq!(buttons(&d), vec![down()]);
         assert!(d[4].events.is_empty());
         assert_eq!(
             d[4].tap_drag_phase_after,
@@ -7288,7 +7227,8 @@ mod tests {
                 f(1, 1, vec![ended(9, 0, 0.1, 0.0)]),
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up()]);
+        assert_eq!(buttons(&d), vec![down()]);
+        assert_eq!(a.release_all(), vec![up()]);
     }
 
     // ------------------------------------------------------------------
@@ -7317,7 +7257,7 @@ mod tests {
             &mut a,
             &[
                 f(0, 0, vec![began(1, 0, 0.0, 0.0)]),
-                f(1, 1, vec![ended(1, 0, 0.1, 0.0)]), // first tap click pulse
+                f(1, 1, vec![ended(1, 0, 0.1, 0.0)]), // first tap pending press
                 f(2, 2, vec![began(2, 0, 10.0, 10.0)]), // pending follow-up
                 f(3, 3, vec![began(3, 0, 10.1, 10.0)]), // tracking-id bounce/replacement
                 f(4, 4, vec![active(3, 0, 11.2, 10.0)]), // ordinary pointer commit
@@ -7327,7 +7267,7 @@ mod tests {
         assert_eq!(d[2].tap_drag_phase_after, TapDragPhase::TapDragCandidate);
         assert!(
             d[2].events.is_empty(),
-            "follow-up Began must not press left"
+            "follow-up Began must not generate another left press"
         );
         assert_eq!(buttons(&d), vec![down(), up()]);
         assert!(moves(&d).iter().any(|(x, _)| *x > 0.0));
@@ -7370,7 +7310,7 @@ mod tests {
             &[
                 f(0, 0, vec![began(1, 0, 0.0, 0.0)]),
                 f(1, 1, vec![ended(1, 0, 0.1, 0.0)]),
-                f(2, 2, vec![began(2, 0, 10.0, 10.0)]), // synthetic [down]
+                f(2, 2, vec![began(2, 0, 10.0, 10.0)]), // inherits pending down
                 f(3, 3, vec![active(2, 0, 11.0, 10.0)]), // commit 10 px
             ],
         );
@@ -7381,20 +7321,10 @@ mod tests {
         );
         assert_eq!(d[0].events, vec![move_event(5.0, 0.0)]);
         assert!(a.is_physical_left_held());
-        assert!(a.is_synthetic_left_held());
-        // Physical release while the lock still holds synthetic left: no up.
+        assert!(!a.is_synthetic_left_held());
+        // Physical left now owns the aggregate and releases it exactly once.
         let d = run(&mut a, &[frm(5, 5, vec![], false, false)]);
-        assert_eq!(d[0].events, Vec::<OutputEvent>::new());
-        assert!(a.is_left_held());
-        // Unlocking with a qualifying tap releases the aggregate exactly once.
-        let d = run(
-            &mut a,
-            &[
-                f(6, 6, vec![began(4, 0, 30.0, 30.0)]),
-                f(7, 7, vec![ended(4, 0, 30.1, 30.0)]),
-            ],
-        );
-        assert_eq!(buttons(&d), vec![up()]);
+        assert_eq!(d[0].events, vec![up()]);
         assert!(!a.is_left_held());
     }
 
@@ -7527,13 +7457,13 @@ mod tests {
             &mut a,
             &[
                 f(0, 0, vec![began(1, 0, 0.0, 0.0)]),
-                f(1, 1, vec![ended(1, 0, 0.1, 0.0)]), // first tap [down, up]
-                f(2, 2, vec![began(2, 0, 10.0, 10.0)]), // synthetic [down]
+                f(1, 1, vec![ended(1, 0, 0.1, 0.0)]), // first tap: pending down
+                f(2, 2, vec![began(2, 0, 10.0, 10.0)]), // inherits held left
                 f(3, 3, vec![active(2, 0, 10.8, 10.0)]), // below threshold
                 f(4, 4, vec![ended(2, 0, 11.0, 10.0)]), // equality at threshold, final frame
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up(), down()]);
+        assert_eq!(buttons(&d), vec![down()]);
         assert_eq!(moves(&d), vec![(10.0, 0.0)]);
         assert_eq!(
             d[4].tap_drag_phase_after,
@@ -7583,7 +7513,9 @@ mod tests {
             "no duplicate down while synthetic holds"
         );
         assert!(a.is_physical_left_held());
-        assert!(a.is_synthetic_left_held());
+        // Physical-left press explicitly takes over the aggregate tap/drag
+        // ownership; the synthetic source is cleared without a wire gap.
+        assert!(!a.is_synthetic_left_held());
         let d = run(&mut a, &[frm(6, 6, vec![], false, true)]); // 3. discontinuity + release
         assert_eq!(buttons(&d), vec![up()], "exactly one aggregate up"); // 4.
         assert!(!a.is_synthetic_left_held());
@@ -7675,19 +7607,19 @@ mod tests {
             (a, buttons(&d))
         }
         fn assert_pre_cancel_source(a: &Arbiter, pre_phys: bool, name: &str) {
-            // Immediately before the cancellation frame: the synthetic
-            // source is still held and the physical source is exactly the
-            // requested `pre_phys` state (review R5). Without this, the
-            // "simultaneous physical transition" cases silently degrade into
-            // different scenarios than the table claims to cover.
+            // A physical press now wins arbitration immediately: it takes
+            // over the held aggregate and clears the synthetic owner without
+            // producing a wire gap. With no physical press, the original
+            // synthetic lock remains the owner until the cancellation frame.
             assert_eq!(
                 a.is_physical_left_held(),
                 pre_phys,
                 "{name}: pre-frame physical state lost (pre_phys={pre_phys})"
             );
-            assert!(
+            assert_eq!(
                 a.is_synthetic_left_held(),
-                "{name}: synthetic lock lost before the cancellation frame"
+                !pre_phys,
+                "{name}: wrong pre-frame synthetic owner (pre_phys={pre_phys})"
             );
             assert!(
                 a.is_left_held(),
@@ -7749,10 +7681,9 @@ mod tests {
                         frame_left,
                         "{name}: pre_phys={pre_phys}, frame_left={frame_left}: final aggregate state wrong"
                     );
-                    assert_eq!(
-                        a.tap_drag_phase(),
-                        TapDragPhase::Cancelled,
-                        "{name}: pre_phys={pre_phys}, frame_left={frame_left}: lock must be cancelled"
+                    assert!(
+                        matches!(a.tap_drag_phase(), TapDragPhase::Cancelled | TapDragPhase::Idle),
+                        "{name}: pre_phys={pre_phys}, frame_left={frame_left}: tap/lock ownership must be inactive"
                     );
                 }
             }
@@ -7822,9 +7753,9 @@ mod tests {
                 f(3, 3, vec![ended(2, 0, 10.1, 10.0)]),                // quick/small: no click
             ],
         );
-        assert!(d[0].events.is_empty(), "no immediate tap-and-drag down");
+        assert_eq!(d[0].events, vec![up()], "pending tap press is cancelled");
         assert_eq!(d[0].tap_drag_phase_after, TapDragPhase::Idle);
-        assert!(buttons(&d).is_empty());
+        assert_eq!(buttons(&d), vec![up()]);
         // A later genuinely new Began starts tap policy normally.
         let d = run(
             &mut a,
@@ -7834,7 +7765,7 @@ mod tests {
             ],
         );
         assert_eq!(d[0].tap_drag_phase_after, TapDragPhase::FirstTapCandidate);
-        assert_eq!(buttons(&d), vec![down(), up()]);
+        assert_eq!(buttons(&d), vec![down()]);
     }
 
     #[test]
@@ -7860,7 +7791,7 @@ mod tests {
                 f(2, u64::MAX - 500, vec![began(2, 0, 10.0, 10.0)]), // elapsed == gap
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up()]);
+        assert_eq!(buttons(&d), vec![down()]);
         assert!(d[2].events.is_empty());
         assert_eq!(d[2].tap_drag_phase_after, TapDragPhase::TapDragCandidate);
 
@@ -7894,7 +7825,7 @@ mod tests {
                 f(2, u64::MAX, vec![began(2, 0, 10.0, 10.0)]),
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up()]);
+        assert_eq!(buttons(&d), vec![down()]);
         assert!(d[2].events.is_empty());
         assert_eq!(d[2].tap_drag_phase_after, TapDragPhase::TapDragCandidate);
     }
@@ -7919,9 +7850,9 @@ mod tests {
         // Nothing changed: still a tap candidate, no button held.
         assert_eq!(a.tap_drag_phase(), TapDragPhase::FirstTapCandidate);
         assert!(!a.is_left_held());
-        // The tap still fires afterwards.
+        // The tap still enters the deferred-press window afterwards.
         let d = run(&mut a, &[f(2, 2, vec![ended(1, 0, 0.1, 0.0)])]);
-        assert_eq!(buttons(&d), vec![down(), up()]);
+        assert_eq!(buttons(&d), vec![down()]);
     }
 
     #[test]
@@ -7989,7 +7920,7 @@ mod tests {
         adapter
             .frame(&f(0, 0, vec![began(1, 0, 0.0, 0.0)]))
             .unwrap();
-        // The tap pulse [down, up]: the down (submit 0) is rejected.
+        // Deferred tap press: the down (submit 0) is rejected.
         let err = adapter
             .frame(&f(1, 1, vec![ended(1, 0, 0.1, 0.0)]))
             .unwrap_err();
@@ -7998,7 +7929,7 @@ mod tests {
             ArbiterSinkError::PartialSubmit {
                 index: 0,
                 accepted_prefix: 0,
-                decision_len: 2,
+                decision_len: 1,
                 ..
             }
         ));
@@ -8017,16 +7948,19 @@ mod tests {
         adapter
             .frame(&f(0, 0, vec![began(1, 0, 0.0, 0.0)]))
             .unwrap();
-        // [down, up]: down (submit 0) accepted, up (submit 1) rejected.
-        let err = adapter
+        adapter
             .frame(&f(1, 1, vec![ended(1, 0, 0.1, 0.0)]))
+            .unwrap(); // pending down = submit 0
+                       // Timeout commits the pending up (submit 1), which is rejected.
+        let err = adapter
+            .tick(Monotonic::from_nanos(400_000_002))
             .unwrap_err();
         assert!(matches!(
             err,
             ArbiterSinkError::PartialSubmit {
-                index: 1,
-                accepted_prefix: 1,
-                decision_len: 2,
+                index: 0,
+                accepted_prefix: 0,
+                decision_len: 1,
                 ..
             }
         ));
@@ -8044,11 +7978,11 @@ mod tests {
 
     #[test]
     fn sink_motion_failure_after_accepted_synthetic_down_stays_held() {
-        let mut adapter = ArbiterSink::new(tap_cfg_arbiter_cfg(), ScriptedSink::new(vec![3]));
+        let mut adapter = ArbiterSink::new(tap_cfg_arbiter_cfg(), ScriptedSink::new(vec![1]));
         adapter
             .frame(&f(0, 0, vec![began(1, 0, 0.0, 0.0)]))
             .unwrap();
-        // First tap: [down, up] -> submissions 0, 1.
+        // First tap: deferred down -> submission 0.
         adapter
             .frame(&f(1, 1, vec![ended(1, 0, 0.1, 0.0)]))
             .unwrap();
@@ -8056,17 +7990,17 @@ mod tests {
         adapter
             .frame(&f(2, 2, vec![began(2, 0, 10.0, 10.0)]))
             .unwrap();
-        // Commit: [down, move 10,0] -> down is submission 2 (accepted), move
-        // is submission 3 (rejected).
+        // Commit contains only move 10,0 because the original pending press
+        // is already held. The move is submission 1 and is rejected.
         let err = adapter
             .frame(&f(3, 3, vec![active(2, 0, 11.0, 10.0)]))
             .unwrap_err();
         assert!(matches!(
             err,
             ArbiterSinkError::PartialSubmit {
-                index: 1,
-                accepted_prefix: 1,
-                decision_len: 2,
+                index: 0,
+                accepted_prefix: 0,
+                decision_len: 1,
                 ..
             }
         ));
@@ -8077,7 +8011,7 @@ mod tests {
         adapter.release_all().unwrap();
         let (arbiter, sink) = adapter.into_parts();
         assert_eq!(arbiter.lifecycle(), Lifecycle::Idle);
-        assert_eq!(sink.events, vec![down(), up(), down(), up()]);
+        assert_eq!(sink.events, vec![down(), up()]);
         assert!(!sink.held_left);
     }
 
@@ -8111,18 +8045,15 @@ mod tests {
         let (arbiter, sink) = adapter.into_parts();
         assert_eq!(arbiter.lifecycle(), Lifecycle::Idle);
         assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::Idle);
-        assert_eq!(
-            sink.events,
-            vec![down(), up(), down(), move_event(10.0, 0.0), up()]
-        );
+        assert_eq!(sink.events, vec![down(), move_event(10.0, 0.0), up()]);
         assert!(!sink.held_left);
     }
 
     #[test]
     fn sink_fault_while_locked_then_recovery_releases_once() {
-        // Submissions: 0 = tap down, 1 = tap up, 2 = follow-up down,
-        // 3 = commit move, 4 = lock-cancel up (rejected).
-        let mut adapter = ArbiterSink::new(tap_cfg_arbiter_cfg(), ScriptedSink::new(vec![4]));
+        // Submissions: 0 = deferred tap down, 1 = commit move,
+        // 2 = lock-cancel up (rejected).
+        let mut adapter = ArbiterSink::new(tap_cfg_arbiter_cfg(), ScriptedSink::new(vec![2]));
         adapter
             .frame(&f(0, 0, vec![began(1, 0, 0.0, 0.0)]))
             .unwrap();
@@ -8158,10 +8089,7 @@ mod tests {
         adapter.release_all().unwrap();
         let (arbiter, sink) = adapter.into_parts();
         assert_eq!(arbiter.lifecycle(), Lifecycle::Idle);
-        assert_eq!(
-            sink.events,
-            vec![down(), up(), down(), move_event(10.0, 0.0), up()]
-        );
+        assert_eq!(sink.events, vec![down(), move_event(10.0, 0.0), up()]);
         assert!(!sink.held_left);
     }
 
@@ -9042,7 +8970,7 @@ mod tests {
                 f(5, 5, vec![began(9, 0, 20.0, 20.0), began(8, 1, 30.0, 20.0)]),
             ],
         );
-        assert_eq!(buttons(&d), vec![down(), up(), down(), up()]);
+        assert_eq!(buttons(&d), vec![down(), up()]);
         assert!(!a.is_left_held());
         assert_eq!(a.tap_drag_phase(), TapDragPhase::Cancelled);
         assert_eq!(a.two_finger_phase(), TwoFingerPhase::Candidate);

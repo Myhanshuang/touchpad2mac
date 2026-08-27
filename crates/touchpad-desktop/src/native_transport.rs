@@ -718,6 +718,17 @@ impl<F: NativeFfi> Transport for NativeTransport<F> {
         Ok(())
     }
 
+    fn frame_at(&mut self, device: DeviceId, time_us: u64) -> Result<(), DesktopOutputError> {
+        let device_handle = self.require_device(device)?;
+        if self.ei.is_none() {
+            return Err(DesktopOutputError::Internal(
+                "frame without a connected context".to_string(),
+            ));
+        }
+        self.ffi.device_frame(device_handle, time_us);
+        Ok(())
+    }
+
     fn disconnect(&mut self) -> Result<(), DesktopOutputError> {
         if self.disconnected && self.ei.is_none() {
             return Ok(());
@@ -825,6 +836,8 @@ mod tests {
         /// Number of emission calls (start_emulating/motion/button/scroll/
         /// frame).
         emissions: Cell<usize>,
+        /// Timestamp supplied to the most recent device frame.
+        last_frame_time_us: Cell<Option<u64>>,
         /// Number of disconnect calls.
         disconnects: Cell<usize>,
     }
@@ -846,6 +859,7 @@ mod tests {
                 device_capabilities: crate::sink::BIND_CAPABILITY_BITS,
                 device_type: crate::ffi::EI_DEVICE_TYPE_VIRTUAL,
                 emissions: Cell::new(0),
+                last_frame_time_us: Cell::new(None),
                 disconnects: Cell::new(0),
             }
         }
@@ -974,7 +988,8 @@ mod tests {
             self.emissions.set(self.emissions.get() + 1);
         }
 
-        fn device_frame(&self, _device: &EiDevice, _time_us: u64) {
+        fn device_frame(&self, _device: &EiDevice, time_us: u64) {
+            self.last_frame_time_us.set(Some(time_us));
             self.emissions.set(self.emissions.get() + 1);
         }
 
@@ -1263,6 +1278,39 @@ mod tests {
         assert!(matches!(error, DesktopOutputError::Internal(_)), "{error}");
         let error = transport.pointer_motion(device, 1.0, 0.0).unwrap_err();
         assert!(matches!(error, DesktopOutputError::Internal(_)), "{error}");
+    }
+
+    #[test]
+    fn frame_at_uses_supplied_source_timestamp() {
+        let ffi = ScriptedFfi::new();
+        ffi.fd_ready.set(true);
+        ffi.next_batch.borrow_mut().extend([
+            ScriptedEvent::SeatAdded,
+            ScriptedEvent::DeviceAdded,
+            ScriptedEvent::DeviceResumed,
+        ]);
+        let mut transport = scripted_transport(ffi);
+        let seat = scripted_seat(&transport.ffi);
+        let device = scripted_device(&transport.ffi);
+
+        assert_eq!(
+            transport.wait_event(Duration::ZERO).unwrap(),
+            TransportEvent::SeatAdded { seat }
+        );
+        transport
+            .bind_capabilities(seat, crate::sink::BIND_CAPABILITY_BITS)
+            .unwrap();
+        assert!(matches!(
+            transport.wait_event(Duration::ZERO).unwrap(),
+            TransportEvent::DeviceAdded { .. }
+        ));
+        assert_eq!(
+            transport.wait_event(Duration::ZERO).unwrap(),
+            TransportEvent::DeviceResumed { device }
+        );
+
+        transport.frame_at(device, 987_654).unwrap();
+        assert_eq!(transport.ffi.last_frame_time_us.get(), Some(987_654));
     }
 
     /// M6 re-review R11: the same delivery-order guarantee for a queued

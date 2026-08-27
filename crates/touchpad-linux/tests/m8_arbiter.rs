@@ -193,8 +193,9 @@ fn replay_and_synthetic_tap_frames_produce_identical_decisions() {
 }
 
 /// The `m8_tap` fixture is a quick, small one-finger contact: a qualifying
-/// tap fires exactly one `ButtonDown(Left), ButtonUp(Left)` pair at the
-/// release frame and opens the follow-up window.
+/// tap emits a deferred `ButtonDown(Left)` at the release frame and opens the
+/// follow-up window. The matching up is committed only when that window
+/// expires without a follow-up contact.
 #[test]
 fn replayed_tap_fixture_emits_one_click_pair() {
     let frames = replay_frames("m8_tap");
@@ -212,17 +213,23 @@ fn replayed_tap_fixture_emits_one_click_pair() {
         decisions[1].tap_drag_phase_after,
         TapDragPhase::FirstTapCandidate
     );
-    // The release frame emits exactly one click pair.
-    assert_eq!(decisions[2].events, vec![down(), up()]);
+    // The release frame emits only the deferred press.
+    assert_eq!(decisions[2].events, vec![down()]);
     assert_eq!(
         decisions[2].tap_drag_phase_after,
         TapDragPhase::FollowUpWindow
     );
     assert_eq!(decisions[2].lifecycle_after, Lifecycle::Finished);
-    assert_eq!(buttons(&decisions), vec![down(), up()]);
+    assert_eq!(buttons(&decisions), vec![down()]);
     assert_eq!(
         decisions[2].transitions,
         vec![LifecycleTransition::Finish { tracking_id: 10 }]
     );
     assert_eq!(arbiter.lifecycle(), Lifecycle::Finished);
+
+    let release_ts = frames[2].monotonic_timestamp;
+    let timeout = release_ts.saturating_add(std::time::Duration::from_millis(401));
+    let timeout_decision = arbiter.tick(timeout).unwrap();
+    assert_eq!(timeout_decision.events, vec![up()]);
+    assert_eq!(arbiter.tap_drag_phase(), TapDragPhase::Idle);
 }

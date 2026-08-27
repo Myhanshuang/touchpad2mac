@@ -988,18 +988,17 @@ fn run_loop(
                 tick_clock.observe_input(observed_at, input_sequence, input_timestamp);
             }
         }
-        // M12 momentum is time-driven rather than input-driven. Advance it
-        // after the readiness wait. The bounded-deadline clock is mapped onto
-        // the latest accepted input-frame epoch before it enters core; the
-        // real deadline clock is process-relative while live evdev frames are
-        // kernel CLOCK_MONOTONIC since boot. A tick output fault is stored by
-        // the bridge and handled by the existing fail-open shutdown path.
+        // Policy timers are time-driven rather than input-driven. Advance
+        // them after the readiness wait. Today this primarily commits the
+        // delayed ButtonUp for libinput-style tap-and-drag; kinetic scrolling
+        // no longer lives in core. The bounded-deadline clock is mapped onto
+        // the latest accepted input-frame epoch before it enters core.
         let after_wait = (env.takeover.clock)();
         if guard
             .runtime
             .as_mut()
             .and_then(|runtime| runtime.sink_mut())
-            .is_some_and(|bridge| bridge.arbiter().is_scroll_momentum_active())
+            .is_some_and(|bridge| bridge.arbiter().needs_timer_tick())
         {
             if let Some(bridge) = guard
                 .runtime

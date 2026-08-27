@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::time::Monotonic;
 use crate::units::LogicalPixels;
 
 /// Mouse buttons in the semantic output model.
@@ -179,6 +180,19 @@ pub trait OutputSink {
             }
         }
         Ok(())
+    }
+
+    /// Submits one logical input frame together with the source monotonic
+    /// timestamp. Protocol backends that can timestamp their own hardware
+    /// frames should override this method. Legacy sinks deliberately fall
+    /// back to [`Self::submit_frame`] so adding timestamp propagation does not
+    /// change their delivery semantics.
+    fn submit_frame_at(
+        &mut self,
+        _timestamp: Monotonic,
+        events: &[OutputEvent],
+    ) -> Result<(), OutputFrameError> {
+        self.submit_frame(events)
     }
 
     /// Releases all held button/key state. Must be idempotent.

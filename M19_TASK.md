@@ -11,12 +11,13 @@ feel changes without restarting the session.
 ## Contract
 
 - Add `m19-live-v1`, inheriting M18 settings/gesture mapping. M19 applies two
-  live-use refinements to the inherited M8 tap policy: one completed tap arms
-  the immediately-following one-finger contact for tap-and-drag for **180 ms**,
-  matching the local libinput single-finger drag timeout; and sticky
-  one-finger tap-drag lock is disabled, so a committed drag emits its matching
-  left-button release on the clean `Ended` frame rather than holding left into
-  the next interaction. M10-M18 profile behavior is unchanged.
+  live-use refinements to the inherited M8 tap policy: a qualifying tap release
+  holds a deferred synthetic-left press for **180 ms**; a follow-up one-finger
+  contact inside that window reuses the held press if motion commits to drag,
+  matching libinput's single-finger tap-and-drag commit model. Sticky one-finger
+  tap-drag lock is disabled, so a committed drag emits its matching left-button
+  release on the clean `Ended` frame rather than holding left into the next
+  interaction. M10-M18 profile behavior is unchanged.
 - M19 also installs a three-finger-drag-only pointer-fidelity profile. It
   preserves the ordinary pointer dead-zone, low-speed gain and tracking speed,
   while capping the drag high-speed gain at 1.6. The ordinary one-finger
