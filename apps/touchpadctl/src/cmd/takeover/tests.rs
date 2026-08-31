@@ -458,12 +458,47 @@ impl touchpad_linux::sys::Sys for TimelineSys {
 fn run_takeover(env: &mut CommandEnv<'_>, duration: u32) -> Result<(), CommandFailure> {
     super::run(
         env,
-        &device_path(),
+        device_path().as_path(),
         &temp_trace("run"),
         duration,
         "m10-linear-v1",
         ProfileInputs::default(),
     )
+}
+
+#[test]
+fn auto_discovery_selects_the_only_touchpad_candidate() {
+    let mut h = Harness::happy();
+    h.sys.set_dir_entries(vec![device_path()]);
+    h.with_device(mock_touchpad());
+    let mut env = h.env();
+
+    let selected = discover_unique_touchpad(&mut env).unwrap();
+    assert_eq!(selected, device_path());
+    drop(env);
+
+    let err = String::from_utf8(h.err).unwrap();
+    assert!(err.contains("auto-selected touchpad"), "{err}");
+    assert!(err.contains("/dev/input/event0"), "{err}");
+}
+
+#[test]
+fn auto_discovery_refuses_multiple_candidates_and_lists_device_flags() {
+    let first = PathBuf::from("/dev/input/event3");
+    let second = PathBuf::from("/dev/input/event15");
+    let mut h = Harness::happy();
+    h.sys.set_dir_entries(vec![second.clone(), first.clone()]);
+    h.sys.add_device(first.clone(), mock_touchpad());
+    h.sys
+        .add_device(second.clone(), MockDevice::touchpad("Second Pad", 5));
+    let mut env = h.env();
+
+    let failure = discover_unique_touchpad(&mut env).unwrap_err();
+    assert_eq!(failure.exit_code(), ExitCode::NoCandidate);
+    let text = failure.to_string();
+    assert!(text.contains("multiple candidates"), "{text}");
+    assert!(text.contains("--device /dev/input/event3"), "{text}");
+    assert!(text.contains("--device /dev/input/event15"), "{text}");
 }
 
 /// The position of the first marker matching a predicate.
@@ -1930,7 +1965,7 @@ fn m11_takeover_command_path_banner_before_side_effects_and_clean_deadline() {
     let mut env = h.env();
     let result = super::run(
         &mut env,
-        &device_path(),
+        device_path().as_path(),
         &temp_trace("m11"),
         1,
         "m11-fidelity-v1",
@@ -2007,7 +2042,7 @@ fn takeover_trace_replays_to_the_same_frames() {
     // Run the takeover with the trace written to a real file.
     let result = super::run(
         &mut env,
-        &device_path(),
+        device_path().as_path(),
         &trace_path,
         1,
         "m10-linear-v1",

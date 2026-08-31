@@ -121,7 +121,7 @@ pub fn run_command(env: &mut CommandEnv<'_>, command: &Command) -> Result<(), Co
             watch_settings,
         } => cmd::takeover::run(
             env,
-            device,
+            device.as_deref(),
             trace,
             *max_duration_seconds,
             profile,

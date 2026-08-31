@@ -752,7 +752,7 @@ fn takeover_m11_fidelity_v1_public_cli_run_is_fake_backed_and_clean() {
     else {
         panic!("expected takeover");
     };
-    assert_eq!(device, &PathBuf::from("/dev/input/event0"));
+    assert_eq!(device, &Some(PathBuf::from("/dev/input/event0")));
     assert_eq!(max_duration_seconds, &1);
     assert_eq!(profile, "m11-fidelity-v1");
 
@@ -782,7 +782,7 @@ fn takeover_m11_fidelity_v1_public_cli_run_is_fake_backed_and_clean() {
     );
     let trace_path = temp_output("m11-cli");
     let command = Command::Takeover {
-        device: path.clone(),
+        device: Some(path.clone()),
         trace: trace_path.clone(),
         max_duration_seconds: 1,
         profile: "m11-fidelity-v1".to_string(),

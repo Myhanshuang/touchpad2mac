@@ -124,7 +124,7 @@ pub enum Command {
         /// Destination HTML file.
         output: PathBuf,
     },
-    /// `takeover DEVICE TRACE --takeover --confirm TAKEOVER
+    /// `takeover TRACE [--device DEVICE] --takeover --confirm TAKEOVER
     /// --output-qualified --profile m10-linear-v1 --max-duration-seconds N`
     /// — the M10 bounded, fail-open live takeover slice: exclusively grab
     /// `DEVICE`, stream the decoded contacts through the approved M7–M9
@@ -134,8 +134,10 @@ pub enum Command {
     /// every opt-in is mandatory and independently validated (M10_TASK.md
     /// §2/§4).
     Takeover {
-        /// The physical device node to take over.
-        device: PathBuf,
+        /// The physical device node to take over. `None` means discover the
+        /// unique touchpad candidate at runtime. The legacy positional
+        /// `takeover DEVICE TRACE ...` spelling remains accepted.
+        device: Option<PathBuf>,
         /// The mandatory raw-event trace output.
         trace: PathBuf,
         /// The maximum duration in seconds (`1..=300`; no zero, overflow,
@@ -291,6 +293,15 @@ pub enum UsageError {
         /// The repeated flag.
         flag: &'static str,
     },
+    /// `--device` was present without its device-node value.
+    #[error("`--device` requires a device node such as /dev/input/event15")]
+    DeviceNeedsValue,
+    /// The device was supplied both through `--device` and through the
+    /// legacy positional `DEVICE TRACE` spelling.
+    #[error(
+        "touchpad device specified twice; use `takeover TRACE --device DEVICE ...` or the legacy `takeover DEVICE TRACE ...`, not both"
+    )]
+    DeviceSpecifiedTwice,
     /// A takeover-only flag was passed to another command.
     #[error(
         "flag {flag:?} is only valid with `takeover` (got command {command:?}); try `touchpadctl --help`"
@@ -336,6 +347,7 @@ const TAKEOVER_ONLY_FLAGS: &[&str] = &[
     "--takeover",
     "--confirm",
     "--output-qualified",
+    "--device",
     "--profile",
     "--max-duration-seconds",
     "--feel-config",
@@ -644,21 +656,18 @@ where
 /// Parses the M10 `takeover` command (M10_TASK.md §2):
 ///
 /// ```text
-/// takeover DEVICE TRACE --takeover --confirm TAKEOVER --output-qualified
-///          --profile m10-linear-v1 --max-duration-seconds N
+/// takeover TRACE [--device DEVICE] --takeover --confirm TAKEOVER
+///          --output-qualified --profile m10-linear-v1
+///          --max-duration-seconds N
 /// ```
 ///
-/// `DEVICE` and `TRACE` are mandatory explicit paths. Every opt-in —
-/// `--takeover`, the exact confirmation text, `--output-qualified` (the
-/// operator attestation), the named versioned profile, and the maximum
-/// duration — is mandatory and independently validated. The duration must be
-/// an integer in `1..=300` (no zero, overflow, missing, repeated, or
-/// unlimited form). Unknown flags, repeated flags, and value-taking flags
-/// without their value are usage errors, all before any device/output side
-/// effect.
+/// `TRACE` is mandatory. `DEVICE` is optional: when omitted, takeover
+/// discovers the unique touchpad candidate at runtime. When multiple
+/// candidates exist, runtime refuses and asks for `--device DEVICE`. The
+/// legacy positional `takeover DEVICE TRACE ...` spelling remains accepted.
 fn parse_takeover(args: &[String]) -> Result<Command, UsageError> {
-    let mut device: Option<PathBuf> = None;
-    let mut trace: Option<PathBuf> = None;
+    let mut device_flag: Option<PathBuf> = None;
+    let mut device_count = 0usize;
     let mut takeover_count = 0usize;
     let mut confirm_count = 0usize;
     let mut output_qualified_count = 0usize;
@@ -671,7 +680,7 @@ fn parse_takeover(args: &[String]) -> Result<Command, UsageError> {
     let mut duration: Option<u32> = None;
     let mut feel_config: Option<PathBuf> = None;
     let mut settings: Option<PathBuf> = None;
-    let mut positionals = 0usize;
+    let mut positionals: Vec<PathBuf> = Vec::new();
 
     let mut i = 0;
     while i < args.len() {
@@ -679,6 +688,15 @@ fn parse_takeover(args: &[String]) -> Result<Command, UsageError> {
         match arg.as_str() {
             "--takeover" => takeover_count += 1,
             "--output-qualified" => output_qualified_count += 1,
+            "--device" => {
+                device_count += 1;
+                let value = args.get(i + 1).ok_or(UsageError::DeviceNeedsValue)?;
+                if value.starts_with('-') {
+                    return Err(UsageError::DeviceNeedsValue);
+                }
+                device_flag = Some(PathBuf::from(value));
+                i += 1;
+            }
             "--confirm" => {
                 confirm_count += 1;
                 let value = args.get(i + 1).ok_or(UsageError::ConfirmNeedsValue)?;
@@ -726,16 +744,12 @@ fn parse_takeover(args: &[String]) -> Result<Command, UsageError> {
                 return Err(UsageError::UnknownFlag(arg.clone()));
             }
             _ => {
-                positionals += 1;
-                if device.is_none() {
-                    device = Some(PathBuf::from(arg));
-                } else if trace.is_none() {
-                    trace = Some(PathBuf::from(arg));
-                } else {
+                positionals.push(PathBuf::from(arg));
+                if positionals.len() > 2 {
                     return Err(UsageError::WrongArity {
                         command: "takeover",
-                        expected: 2,
-                        actual: positionals,
+                        expected: 1,
+                        actual: positionals.len(),
                     });
                 }
             }
@@ -766,6 +780,9 @@ fn parse_takeover(args: &[String]) -> Result<Command, UsageError> {
         return Err(UsageError::DuplicateTakeoverFlag {
             flag: "--output-qualified",
         });
+    }
+    if device_count > 1 {
+        return Err(UsageError::DuplicateTakeoverFlag { flag: "--device" });
     }
     if profile_count == 0 {
         return Err(UsageError::ProfileRequired);
@@ -849,16 +866,21 @@ fn parse_takeover(args: &[String]) -> Result<Command, UsageError> {
         });
     }
     let max_duration_seconds = duration.ok_or(UsageError::DurationRequired)?;
-    let device = device.ok_or(UsageError::WrongArity {
-        command: "takeover",
-        expected: 2,
-        actual: positionals,
-    })?;
-    let trace = trace.ok_or(UsageError::WrongArity {
-        command: "takeover",
-        expected: 2,
-        actual: positionals,
-    })?;
+    let (legacy_device, trace) = match positionals.as_slice() {
+        [trace] => (None, trace.clone()),
+        [legacy_device, trace] => (Some(legacy_device.clone()), trace.clone()),
+        _ => {
+            return Err(UsageError::WrongArity {
+                command: "takeover",
+                expected: 1,
+                actual: positionals.len(),
+            });
+        }
+    };
+    if device_flag.is_some() && legacy_device.is_some() {
+        return Err(UsageError::DeviceSpecifiedTwice);
+    }
+    let device = device_flag.or(legacy_device);
 
     Ok(Command::Takeover {
         device,
@@ -951,7 +973,7 @@ USAGE:
   touchpadctl settings-set INPUT OUTPUT KEY=VALUE [KEY=VALUE ...]
   touchpadctl settings-patch FILE KEY=VALUE [KEY=VALUE ...]
   touchpadctl settings-gui INPUT OUTPUT.html
-  touchpadctl takeover DEVICE TRACE --takeover --confirm TAKEOVER \
+  touchpadctl takeover TRACE [--device DEVICE] --takeover --confirm TAKEOVER \
 --output-qualified --profile m10-linear-v1 --max-duration-seconds N
 
 COMMANDS:
@@ -1020,9 +1042,9 @@ COMMANDS:
                        Generate the self-contained combined feel + gesture
                        settings editor. The generated page remains offline;
                        export/save settings.json for M18/M19.
-  takeover DEVICE TRACE
+  takeover TRACE [--device DEVICE]
                        M10 BOUNDED LIVE TAKEOVER: exclusively grab the
-                       physical touchpad DEVICE (EVIOCGRAB), decode its raw
+                       selected physical touchpad (EVIOCGRAB), decode its raw
                        events through the Type-B decoder, resolve them
                        through the approved M7-M9 interaction arbiter with
                        the explicit versioned policy profile (--profile),
@@ -1047,6 +1069,12 @@ COMMANDS:
                        --output-qualified is the OPERATOR ATTESTATION that
                        the M6 output calibration was performed — it is NOT
                        measurement evidence and does not qualify anything.
+                       If --device is omitted, /dev/input/event* is scanned
+                       and the unique touchpad candidate is selected
+                       automatically. If multiple candidates qualify,
+                       takeover refuses to guess, lists them, and asks you to
+                       rerun with --device /dev/input/eventX. The legacy
+                       `takeover DEVICE TRACE ...` form remains accepted.
 
 OPTIONS:
   --grab               (record only) Exclusively grab the device with
@@ -1075,6 +1103,11 @@ OPTIONS:
   --output-qualified   (takeover only, mandatory) The operator attestation
                        that the M6 output calibration was performed
                        (docs/M6_ACCEPTANCE.md §3). Not measurement evidence.
+  --device DEVICE      (takeover only, optional) Explicitly choose one
+                       /dev/input/event* node. Normally omit this and let a
+                       unique touchpad be discovered automatically. Use it
+                       when discovery reports multiple candidates. May be
+                       given at most once.
   --profile NAME       (takeover only, mandatory) The named versioned policy
                        profile; `m10-linear-v1` (M10 baseline),
                        `m11-fidelity-v1` (EXPERIMENTAL one-finger fidelity),
@@ -1389,7 +1422,7 @@ mod tests {
         assert_eq!(
             command,
             Command::Takeover {
-                device: PathBuf::from("/dev/input/event0"),
+                device: Some(PathBuf::from("/dev/input/event0")),
                 trace: PathBuf::from("trace.jsonl"),
                 max_duration_seconds: 60,
                 profile: "m10-linear-v1".to_string(),
@@ -1398,6 +1431,52 @@ mod tests {
                 watch_settings: false,
             }
         );
+    }
+
+    #[test]
+    fn takeover_can_omit_device_for_auto_discovery() {
+        let command = parse(&[
+            "takeover",
+            "trace.jsonl",
+            "--takeover",
+            "--confirm",
+            "TAKEOVER",
+            "--output-qualified",
+            "--profile",
+            "m10-linear-v1",
+            "--max-duration-seconds",
+            "60",
+        ])
+        .unwrap();
+        let Command::Takeover { device, trace, .. } = command else {
+            panic!("expected takeover");
+        };
+        assert_eq!(device, None);
+        assert_eq!(trace, PathBuf::from("trace.jsonl"));
+    }
+
+    #[test]
+    fn takeover_accepts_explicit_device_flag() {
+        let command = parse(&[
+            "takeover",
+            "trace.jsonl",
+            "--device",
+            "/dev/input/event15",
+            "--takeover",
+            "--confirm",
+            "TAKEOVER",
+            "--output-qualified",
+            "--profile",
+            "m10-linear-v1",
+            "--max-duration-seconds",
+            "60",
+        ])
+        .unwrap();
+        let Command::Takeover { device, trace, .. } = command else {
+            panic!("expected takeover");
+        };
+        assert_eq!(device, Some(PathBuf::from("/dev/input/event15")));
+        assert_eq!(trace, PathBuf::from("trace.jsonl"));
     }
 
     /// Every mandatory opt-in is independently validated: missing any one of
@@ -1867,7 +1946,7 @@ mod tests {
     /// Missing device/trace paths are arity errors; `--grab`/`--emit` are not
     /// takeover flags.
     #[test]
-    fn takeover_requires_explicit_device_and_trace() {
+    fn takeover_requires_trace_but_device_may_be_discovered() {
         let missing = parse(&[
             "takeover",
             "--takeover",
@@ -1882,7 +1961,7 @@ mod tests {
         assert!(matches!(missing, Err(UsageError::WrongArity { .. })));
         let one = parse(&[
             "takeover",
-            "/dev/input/event0",
+            "t.jsonl",
             "--takeover",
             "--confirm",
             "TAKEOVER",
@@ -1891,8 +1970,16 @@ mod tests {
             "m10-linear-v1",
             "--max-duration-seconds",
             "60",
-        ]);
-        assert!(matches!(one, Err(UsageError::WrongArity { .. })));
+        ])
+        .unwrap();
+        assert!(matches!(
+            one,
+            Command::Takeover {
+                device: None,
+                trace,
+                ..
+            } if trace.as_path() == std::path::Path::new("t.jsonl")
+        ));
         // --grab / --emit are not valid takeover flags.
         assert!(matches!(
             parse(&[

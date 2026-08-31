@@ -96,7 +96,7 @@
 //! milestone — M10 stays live-unqualified until the user completes the
 //! 10/60/300-second acceptance sequence (`docs/M10_ACCEPTANCE.md`).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -110,8 +110,8 @@ use touchpad_desktop::capabilities::Capability;
 use touchpad_desktop::{DesktopOutputError, StreamingOutput};
 use touchpad_linux::sys::{Fd, SysError};
 use touchpad_linux::{
-    EvdevRuntime, OpenError, RawEventRecorder, RecorderError, RuntimeError, ShutdownReport,
-    TakeoverBridge,
+    enumerate, EvdevRuntime, OpenError, ProbeError, ProbeVerdict, RawEventRecorder, RecorderError,
+    RuntimeError, ShutdownReport, TakeoverBridge,
 };
 use touchpad_trace::TraceHeader;
 
@@ -563,16 +563,75 @@ pub(crate) struct ProfileInputs<'a> {
     pub(crate) watch_settings: bool,
 }
 
-/// Runs `takeover DEVICE TRACE --takeover --confirm TAKEOVER
+fn discover_unique_touchpad(env: &mut CommandEnv<'_>) -> Result<PathBuf, CommandFailure> {
+    let reports = enumerate(&*env.sys).map_err(|error| match error {
+        ProbeError::ReadDir { path, source } => match source {
+            SysError::NotFound { path } => CommandFailure::InputDir(format!(
+                "cannot auto-discover a touchpad because {} does not exist",
+                path.display()
+            )),
+            SysError::PermissionDenied { path, .. } => CommandFailure::Permission(format!(
+                "cannot auto-discover a touchpad: permission denied reading {}; check access to /dev/input (usually the input group)",
+                path.display()
+            )),
+            other => CommandFailure::Unexpected(format!(
+                "could not enumerate {} while auto-discovering the touchpad: {other}",
+                path.display()
+            )),
+        },
+    })?;
+
+    let candidates: Vec<_> = reports
+        .iter()
+        .filter(|report| matches!(report.verdict, ProbeVerdict::Candidate { .. }))
+        .collect();
+
+    match candidates.as_slice() {
+        [candidate] => {
+            writeln!(
+                env.err,
+                "auto-selected touchpad: {} ({})",
+                candidate.path.display(),
+                candidate.name
+            )
+            .map_err(|error| {
+                CommandFailure::Unexpected(format!("could not write device-selection status: {error}"))
+            })?;
+            Ok(candidate.path.clone())
+        }
+        [] => Err(CommandFailure::NoCandidate(
+            "automatic touchpad discovery found no usable Type-B touchpad candidate. Run `touchpadctl devices` for detailed probe reasons, or use `--device /dev/input/eventX` only if you intentionally want to inspect an explicit node."
+                .to_string(),
+        )),
+        many => {
+            let mut message = String::from(
+                "automatic touchpad discovery found multiple candidates; refusing to guess. Rerun takeover with exactly one `--device /dev/input/eventX` argument:\n",
+            );
+            for candidate in many {
+                use std::fmt::Write as _;
+                let _ = writeln!(
+                    message,
+                    "  --device {}    ({})",
+                    candidate.path.display(),
+                    candidate.name
+                );
+            }
+            Err(CommandFailure::NoCandidate(message))
+        }
+    }
+}
+
+/// Runs `takeover TRACE [--device DEVICE] --takeover --confirm TAKEOVER
 /// --output-qualified --profile m10-linear-v1 --max-duration-seconds N`.
-pub(crate) fn run(
+pub(crate) fn run<'a>(
     env: &mut CommandEnv<'_>,
-    device: &Path,
+    device: impl Into<Option<&'a Path>>,
     trace: &Path,
     max_duration_seconds: u32,
     profile_name: &str,
     inputs: ProfileInputs<'_>,
 ) -> Result<(), CommandFailure> {
+    let device = device.into();
     // Mandatory warnings (the CLI contract documents them; the command
     // repeats them visibly). No resources are held yet, so a status-write
     // failure here is a plain internal error.
@@ -656,6 +715,10 @@ pub(crate) fn run(
             "could not write status: {error}"
         )));
     }
+    let resolved_device = match device {
+        Some(device) => device.to_path_buf(),
+        None => discover_unique_touchpad(env)?,
+    };
 
     // Step 2: create the streaming session object (construction is **pure
     // object allocation** — side-effect-free; the real factory defers the
@@ -687,7 +750,7 @@ pub(crate) fn run(
     };
     let bridge = TakeoverBridge::new(selected.arbiter_config, output);
     let mut runtime =
-        EvdevRuntime::open(Rc::clone(&env.sys), device, bridge).map_err(open_failure)?;
+        EvdevRuntime::open(Rc::clone(&env.sys), &resolved_device, bridge).map_err(open_failure)?;
     runtime.set_stop_flag(std::sync::Arc::clone(&env.stop_flag));
 
     let mut guard = TakeoverCleanup {
@@ -785,7 +848,7 @@ pub(crate) fn run(
         .expect("runtime present")
         .fd()
         .expect("the device is open");
-    status!(env, guard, "device: {}", device.display());
+    status!(env, guard, "device: {}", resolved_device.display());
     status!(env, guard, "trace: {}", trace.display());
     status!(
         env,

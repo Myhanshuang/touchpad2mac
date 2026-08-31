@@ -100,7 +100,7 @@ live-apply；修改后导出新的 `settings.json`，再执行 `settings-check`�
 必须准备外接键鼠和第二终端。
 
 ```bash
-$TP takeover DEVICE trace-m18.jsonl \
+$TP takeover trace-m18.jsonl \
   --takeover \
   --confirm TAKEOVER \
   --output-qualified \
@@ -117,7 +117,7 @@ M18 启动后不会再读设置文件。要改变设置，停止本次 bounded t
 Terminal A：
 
 ```bash
-$TP takeover DEVICE trace-m19.jsonl \
+$TP takeover trace-m19.jsonl \
   --takeover \
   --confirm TAKEOVER \
   --output-qualified \
@@ -126,6 +126,12 @@ $TP takeover DEVICE trace-m19.jsonl \
   --watch-settings \
   --max-duration-seconds 300
 ```
+
+默认会扫描 `/dev/input/event*`。如果只发现一个可用触控板，会直接选中并在
+stderr 打印 `auto-selected touchpad: ...`。如果发现多个候选，takeover 会在
+打开 portal、创建 recorder 或 grab 设备之前拒绝继续，并列出每个候选；此时按
+提示重跑并加上例如 `--device /dev/input/event15`。旧的
+`takeover DEVICE TRACE ...` 写法仍兼容，但新命令建议统一使用 `--device`。
 
 Terminal B：
 
