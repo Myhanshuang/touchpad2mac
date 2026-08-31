@@ -94,7 +94,7 @@
 //! cleanup: the kernel releases the grab when the fd closes at process exit,
 //! but no ordered sequence is guaranteed. No live claim is made by this
 //! milestone — M10 stays live-unqualified until the user completes the
-//! 10/60/300-second acceptance sequence (`docs/M10_ACCEPTANCE.md`).
+//! 10/60/300-second acceptance sequence (`doc/old/acceptance/M10_ACCEPTANCE.md`).
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -652,10 +652,10 @@ pub(crate) fn run<'a>(
     if let Err(error) = writeln!(
         env.err,
         "WARNING: --output-qualified is an OPERATOR ATTESTATION that the M6 \
-         output calibration (docs/M6_ACCEPTANCE.md §3) was performed. It is \
+         output calibration (doc/old/acceptance/M6_ACCEPTANCE.md §3) was performed. It is \
          NOT measurement evidence; the backend stays experimental/unqualified \
          and M10 stays live-unqualified until the user records the \
-         10/60/300-second acceptance results (docs/M10_ACCEPTANCE.md)."
+         10/60/300-second acceptance results (doc/old/acceptance/M10_ACCEPTANCE.md)."
     ) {
         return Err(CommandFailure::Unexpected(format!(
             "could not write status: {error}"

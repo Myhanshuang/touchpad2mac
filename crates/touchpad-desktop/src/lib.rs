@@ -52,7 +52,7 @@
 //! The backend is **`experimental/unqualified`** until a reviewer actually
 //! runs and measures `touchpadctl output-probe --emit` on the current KDE
 //! Wayland session (relative-delta displacement A/B, pixel scroll, button
-//! release; see `docs/M6_ACCEPTANCE.md`).
+//! release; see `doc/old/acceptance/M6_ACCEPTANCE.md`).
 
 #![warn(missing_docs)]
 

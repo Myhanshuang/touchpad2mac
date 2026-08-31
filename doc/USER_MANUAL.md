@@ -259,4 +259,4 @@ axis-lock engage/release 1.6/1.2。三指负责拖拽，四指左右切工作区
 的，请重新生成。该映射仍然只称为 macOS-inspired，不声称 macOS 等价。
 
 代码已接入真实 KDE 环境不等于 live-qualified；第一次真实动作测试仍按
-`docs/M19_ACCEPTANCE.md` 分阶段执行。
+`doc/old/acceptance/M19_ACCEPTANCE.md` 分阶段执行。

@@ -1,7 +1,7 @@
 # Touchpad Runtime — 运行指南
 
 本指南面向“把项目跑起来并开始调手感”的用户。完整参数解释见
-`docs/USER_MANUAL.md`。
+`doc/USER_MANUAL.md`。
 
 > 当前所有 M10–M19 live profile 仍是 **live-unqualified**。代码通过自动化
 > 测试不等于实机资格。真实 takeover 会独占触控板并向桌面发送输入。
@@ -46,7 +46,7 @@ $TP output-probe
 ```
 
 这条命令是 non-emitting preflight。只有显式 `--emit` 才会产生真实桌面
-输入；首次使用前按 `docs/M6_ACCEPTANCE.md` 完成输出校准。
+输入；首次使用前按 `doc/old/acceptance/M6_ACCEPTANCE.md` 完成输出校准。
 
 ## 4. 创建用户设置
 
@@ -183,7 +183,7 @@ M19 运行中可把 `reset.json` 替换/复制为正在 watch 的设置文件，
 - 如果 `settings.json` 是早期版本生成的 `settings-macos`，先重新运行
   `$TP settings-macos settings.json`，因为新的 preset 只启用上述真实可执行
   KDE 动作，其余 route 默认 disabled；
-- KDE 动作代码已接入，但仍需按 `docs/M19_ACCEPTANCE.md` 做用户实机验收，
+- KDE 动作代码已接入，但仍需按 `doc/old/acceptance/M19_ACCEPTANCE.md` 做用户实机验收，
   不能把 code-complete 等同于 live-qualified；
 - M18/M19 不允许设置任意 shell command。
 

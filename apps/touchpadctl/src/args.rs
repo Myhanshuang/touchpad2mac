@@ -230,7 +230,7 @@ pub enum UsageError {
     },
     /// `--output-qualified` was not given to the `takeover` command.
     #[error(
-        "`takeover` requires `--output-qualified` (the operator attestation that the M6 output calibration was performed; see docs/M6_ACCEPTANCE.md §3 — the attestation is not itself measurement evidence)"
+        "`takeover` requires `--output-qualified` (the operator attestation that the M6 output calibration was performed; see doc/old/acceptance/M6_ACCEPTANCE.md §3 — the attestation is not itself measurement evidence)"
     )]
     OutputQualifiedRequired,
     /// `--profile` was not given to the `takeover` command.
@@ -1056,7 +1056,7 @@ COMMANDS:
                        daemon/autostart/service. EXPERIMENTAL: the backend
                        stays experimental/unqualified and M10 stays
                        live-unqualified until the user completes the 10/60/300
-                       second acceptance sequence in docs/M10_ACCEPTANCE.md.
+                       second acceptance sequence in doc/old/acceptance/M10_ACCEPTANCE.md.
                        WARNING: this GRABS the physical touchpad EXCLUSIVELY,
                        EMITS REAL DESKTOP INPUT (pointer motion, clicks,
                        scroll), and OPENS A PORTAL AUTHORIZATION PROMPT.
@@ -1102,7 +1102,7 @@ OPTIONS:
                        text. Any other value is rejected.
   --output-qualified   (takeover only, mandatory) The operator attestation
                        that the M6 output calibration was performed
-                       (docs/M6_ACCEPTANCE.md §3). Not measurement evidence.
+                       (doc/old/acceptance/M6_ACCEPTANCE.md §3). Not measurement evidence.
   --device DEVICE      (takeover only, optional) Explicitly choose one
                        /dev/input/event* node. Normally omit this and let a
                        unique touchpad be discovered automatically. Use it

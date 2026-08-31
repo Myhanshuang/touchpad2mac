@@ -927,7 +927,7 @@ fn public_decisions_serialize_with_two_finger_phase() {
 }
 
 // ------------------------------------------------------------------
-// M9 review R1–R6 public regressions (reviews/M9_REVIEW.md, binding)
+// M9 review R1–R6 public regressions (doc/old/reviews/M9_REVIEW.md, binding)
 // ------------------------------------------------------------------
 
 /// R1 (public): with `scroll_enabled=false`, centroid motion far past the

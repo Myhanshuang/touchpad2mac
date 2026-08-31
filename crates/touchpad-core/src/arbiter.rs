@@ -9923,7 +9923,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // M9 review R1–R6 regressions (reviews/M9_REVIEW.md, binding)
+    // M9 review R1–R6 regressions (doc/old/reviews/M9_REVIEW.md, binding)
     // ------------------------------------------------------------------
 
     /// R1: with `scroll_enabled=false`, centroid motion past the scroll
@@ -10473,7 +10473,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // M9 review R7 regressions (reviews/M9_REVIEW.md re-review 1, binding)
+    // M9 review R7 regressions (doc/old/reviews/M9_REVIEW.md re-review 1, binding)
     // ------------------------------------------------------------------
 
     /// Feeds frames one at a time, asserting **after every frame** that no

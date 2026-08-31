@@ -6,7 +6,7 @@
 //! takeover slice — explicitly **not** a macOS-equivalence claim and **not**
 //! a production default. It must not be read from or copied from KDE/libinput
 //! settings at runtime; the current system behavior is only the manual A/B
-//! baseline (`docs/M6_ACCEPTANCE.md` §3).
+//! baseline (`doc/old/acceptance/M6_ACCEPTANCE.md` §3).
 //!
 //! # What the profile configures
 //!
@@ -37,7 +37,7 @@
 //! This profile is only a bring-up configuration. It does **not** qualify
 //! the live desktop output backend and does **not** constitute measurement
 //! evidence for the M6 calibration gate (`--output-qualified` is an operator
-//! attestation, not data; see `docs/M10_ACCEPTANCE.md`).
+//! attestation, not data; see `doc/old/acceptance/M10_ACCEPTANCE.md`).
 
 use std::time::Duration;
 
