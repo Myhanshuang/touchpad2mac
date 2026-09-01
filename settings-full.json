@@ -53,7 +53,7 @@
       "edge-swipe-down": "disabled",
       "thumb-three-pinch": "application-launcher",
       "thumb-three-spread": "show-desktop",
-      "three-finger-tap": "disabled"
+      "three-finger-tap": "middle-click"
     }
   },
   "dwt": {

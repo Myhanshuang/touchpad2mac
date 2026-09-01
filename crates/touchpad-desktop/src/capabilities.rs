@@ -18,6 +18,8 @@ pub enum Capability {
     PrimaryButton,
     /// Secondary button press/release (right button).
     SecondaryButton,
+    /// Middle button press/release.
+    MiddleButton,
     /// Pixel-precise smooth scroll lifecycle
     /// (`ScrollBegin`/`ScrollDelta`/`ScrollEnd`).
     PixelScroll,
@@ -36,6 +38,8 @@ pub struct OutputCapabilities {
     /// compositor actually honors `BTN_RIGHT` is verified by the manual A/B
     /// measurement.)
     pub secondary_button: bool,
+    /// Button events are available; the middle code is `BTN_MIDDLE`.
+    pub middle_button: bool,
     /// Pixel-precise scroll is available (`EI_DEVICE_CAP_SCROLL`).
     pub pixel_scroll: bool,
 }
@@ -65,6 +69,7 @@ impl OutputCapabilities {
         relative_pointer: false,
         primary_button: false,
         secondary_button: false,
+        middle_button: false,
         pixel_scroll: false,
     };
 
@@ -81,6 +86,7 @@ impl OutputCapabilities {
             relative_pointer: bits & libei_capability_bits::POINTER != 0,
             primary_button: buttons,
             secondary_button: buttons,
+            middle_button: buttons,
             pixel_scroll: bits & libei_capability_bits::SCROLL != 0,
         }
     }
@@ -92,6 +98,7 @@ impl OutputCapabilities {
             Capability::RelativePointer => self.relative_pointer,
             Capability::PrimaryButton => self.primary_button,
             Capability::SecondaryButton => self.secondary_button,
+            Capability::MiddleButton => self.middle_button,
             Capability::PixelScroll => self.pixel_scroll,
         }
     }
@@ -102,6 +109,7 @@ impl OutputCapabilities {
         !self.relative_pointer
             && !self.primary_button
             && !self.secondary_button
+            && !self.middle_button
             && !self.pixel_scroll
     }
 
@@ -117,6 +125,9 @@ impl OutputCapabilities {
         }
         if self.secondary_button {
             parts.push("secondary button");
+        }
+        if self.middle_button {
+            parts.push("middle button");
         }
         if self.pixel_scroll {
             parts.push("pixel-precise smooth scroll");
@@ -144,6 +155,7 @@ mod tests {
         assert!(full.supports(Capability::RelativePointer));
         assert!(full.supports(Capability::PrimaryButton));
         assert!(full.supports(Capability::SecondaryButton));
+        assert!(full.supports(Capability::MiddleButton));
         assert!(full.supports(Capability::PixelScroll));
 
         // A pointer-only device cannot scroll or click.
@@ -152,6 +164,7 @@ mod tests {
         assert!(pointer_only.supports(Capability::RelativePointer));
         assert!(!pointer_only.supports(Capability::PrimaryButton));
         assert!(!pointer_only.supports(Capability::SecondaryButton));
+        assert!(!pointer_only.supports(Capability::MiddleButton));
         assert!(!pointer_only.supports(Capability::PixelScroll));
 
         // A scroll-only device cannot move the pointer.
@@ -179,6 +192,7 @@ mod tests {
         assert!(summary.contains("relative pointer"), "{summary}");
         assert!(summary.contains("primary button"), "{summary}");
         assert!(summary.contains("secondary button"), "{summary}");
+        assert!(summary.contains("middle button"), "{summary}");
         assert!(summary.contains("pixel-precise smooth scroll"), "{summary}");
     }
 }

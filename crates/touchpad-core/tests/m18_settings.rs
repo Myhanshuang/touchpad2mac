@@ -170,3 +170,34 @@ fn disabling_three_finger_drag_commit_keeps_three_finger_tap_mapping() {
         .events
         .contains(&OutputEvent::DesktopAction(DesktopAction::Lookup)));
 }
+
+#[test]
+fn three_finger_tap_can_emit_middle_click_without_drag_commit() {
+    let mut settings = UserSettings::macos_inspired();
+    settings
+        .set_key("gesture.three-finger-tap", "middle-click")
+        .unwrap();
+    let config = M18Profile::new(settings).unwrap().arbiter_config().unwrap();
+    let mut arbiter = Arbiter::new(config);
+
+    arbiter
+        .frame(&three(1, 0, ContactState::Began, 30.0))
+        .unwrap();
+    let released = arbiter
+        .frame(&ContactFrame {
+            monotonic_timestamp: Monotonic::from_nanos(80_000_000),
+            sequence: 2,
+            discontinuity: false,
+            contacts: vec![],
+            physical_buttons: PhysicalButtons::NONE,
+            diagnostics: vec![],
+        })
+        .unwrap();
+    assert_eq!(
+        released.events,
+        vec![
+            OutputEvent::ButtonDown(touchpad_core::MouseButton::Middle),
+            OutputEvent::ButtonUp(touchpad_core::MouseButton::Middle),
+        ]
+    );
+}

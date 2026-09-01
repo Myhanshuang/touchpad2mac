@@ -160,6 +160,11 @@ thumb-three-pinch / thumb-three-spread
 three-finger-tap
 ```
 
+`three-finger-tap` supports the dedicated `middle-click` target. The middle
+button click is emitted only after the complete three-finger contact sequence
+has been classified as a short tap; a committed three-finger drag, swipe, or
+drag-lock release never emits the middle click.
+
 映射后的连续手势只在 Begin 触发一次动作，后续 Update/End 不重复触发。
 
 ## 4. macOS-inspired preset

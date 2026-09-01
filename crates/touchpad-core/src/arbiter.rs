@@ -2969,9 +2969,7 @@ impl ArbiterState {
                         }
                         ThreeFingerDragAction::Tap => {
                             if let Some(bindings) = config.gesture_bindings_config() {
-                                if let Some(event) = route_three_finger_tap(bindings) {
-                                    out.events.push(event);
-                                }
+                                out.events.extend(route_three_finger_tap(bindings));
                             } else {
                                 out.events.push(OutputEvent::DesktopAction(
                                     crate::output::DesktopAction::Lookup,
@@ -6066,6 +6064,113 @@ mod tests {
                 [down_frame, move_frame]
                     if matches!(down_frame.as_slice(), [OutputEvent::ButtonDown(MouseButton::Left)])
                         && matches!(move_frame.as_slice(), [OutputEvent::PointerMove { .. }])
+            )
+        }));
+    }
+
+    #[test]
+    fn m19_three_finger_tap_emits_one_middle_click_pair() {
+        let config = crate::M19Profile::new(crate::UserSettings::default())
+            .unwrap()
+            .arbiter_config()
+            .unwrap();
+        let mut adapter = ArbiterSink::new(config, FrameRecordingSink::default());
+
+        adapter
+            .frame(&f(0, 0, m19_three(ContactState::Began, 0.0)))
+            .unwrap();
+        adapter
+            .frame(&f(1, 50_000_000, m19_three(ContactState::Active, 0.0)))
+            .unwrap();
+        adapter.frame(&f(2, 80_000_000, vec![])).unwrap();
+
+        assert!(adapter.sink().frames.iter().any(|frame| {
+            matches!(
+                frame.as_slice(),
+                [
+                    OutputEvent::ButtonDown(MouseButton::Middle),
+                    OutputEvent::ButtonUp(MouseButton::Middle)
+                ]
+            )
+        }));
+        let middle_edges = adapter
+            .sink()
+            .frames
+            .iter()
+            .flatten()
+            .filter(|event| {
+                matches!(
+                    event,
+                    OutputEvent::ButtonDown(MouseButton::Middle)
+                        | OutputEvent::ButtonUp(MouseButton::Middle)
+                )
+            })
+            .count();
+        assert_eq!(middle_edges, 2);
+    }
+
+    #[test]
+    fn m19_committed_three_finger_drag_never_emits_middle_click() {
+        let config = crate::M19Profile::new(crate::UserSettings::default())
+            .unwrap()
+            .arbiter_config()
+            .unwrap();
+        let mut adapter = ArbiterSink::new(config, FrameRecordingSink::default());
+
+        adapter
+            .frame(&f(0, 0, m19_three(ContactState::Began, 0.0)))
+            .unwrap();
+        adapter
+            .frame(&f(1, 50_000_000, m19_three(ContactState::Active, 0.4)))
+            .unwrap();
+        adapter
+            .frame(&f(2, 60_000_000, m19_three(ContactState::Active, 1.6)))
+            .unwrap();
+        adapter
+            .frame(&f(3, 70_000_000, m19_three(ContactState::Active, 2.2)))
+            .unwrap();
+        adapter.frame(&f(4, 90_000_000, vec![])).unwrap();
+
+        assert!(adapter.sink().frames.iter().flatten().all(|event| {
+            !matches!(
+                event,
+                OutputEvent::ButtonDown(MouseButton::Middle)
+                    | OutputEvent::ButtonUp(MouseButton::Middle)
+            )
+        }));
+    }
+
+    #[test]
+    fn drag_lock_unlock_tap_releases_left_without_middle_click() {
+        let config = crate::M15Profile::new()
+            .unwrap()
+            .arbiter_config()
+            .with_gesture_bindings(crate::GestureMapConfig::default());
+        let mut adapter = ArbiterSink::new(config, FrameRecordingSink::default());
+
+        adapter
+            .frame(&f(0, 0, m19_three(ContactState::Began, 0.0)))
+            .unwrap();
+        adapter
+            .frame(&f(1, 10_000_000, m19_three(ContactState::Active, 1.2)))
+            .unwrap();
+        adapter.frame(&f(2, 20_000_000, vec![])).unwrap();
+        adapter
+            .frame(&f(3, 30_000_000, m19_three(ContactState::Began, 2.0)))
+            .unwrap();
+        adapter.frame(&f(4, 60_000_000, vec![])).unwrap();
+
+        assert!(adapter
+            .sink()
+            .frames
+            .iter()
+            .flatten()
+            .any(|event| { matches!(event, OutputEvent::ButtonUp(MouseButton::Left)) }));
+        assert!(adapter.sink().frames.iter().flatten().all(|event| {
+            !matches!(
+                event,
+                OutputEvent::ButtonDown(MouseButton::Middle)
+                    | OutputEvent::ButtonUp(MouseButton::Middle)
             )
         }));
     }

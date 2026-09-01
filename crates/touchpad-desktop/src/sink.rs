@@ -98,12 +98,15 @@ pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
 pub const HANDSHAKE_WAIT: Duration = Duration::from_millis(500);
 
 /// Linux input event codes for the supported buttons
-/// (`linux/input-event-codes.h`): `BTN_LEFT` 0x110, `BTN_RIGHT` 0x111.
+/// (`linux/input-event-codes.h`): `BTN_LEFT` 0x110, `BTN_RIGHT` 0x111,
+/// `BTN_MIDDLE` 0x112.
 pub mod button_codes {
     /// `BTN_LEFT`.
     pub const BTN_LEFT: u32 = 0x110;
     /// `BTN_RIGHT`.
     pub const BTN_RIGHT: u32 = 0x111;
+    /// `BTN_MIDDLE`.
+    pub const BTN_MIDDLE: u32 = 0x112;
 }
 
 /// The portal/libei output adapter: implements
@@ -431,8 +434,9 @@ impl<P: Portal, T: Transport> PortalOutputSink<P, T> {
         match button {
             MouseButton::Left => self.require_capability(Capability::PrimaryButton),
             MouseButton::Right => self.require_capability(Capability::SecondaryButton),
-            MouseButton::Middle | MouseButton::Other(_) => Err(OutputError::Unavailable(
-                "only primary/secondary buttons are negotiated by M6".to_string(),
+            MouseButton::Middle => self.require_capability(Capability::MiddleButton),
+            MouseButton::Other(_) => Err(OutputError::Unavailable(
+                "only primary/secondary/middle buttons are negotiated by M6".to_string(),
             )),
             // Non-exhaustive enum from touchpad-core: future variants are
             // not emitted by the M6 adapter.
@@ -775,8 +779,9 @@ fn button_code(button: MouseButton) -> u32 {
     match button {
         MouseButton::Left => button_codes::BTN_LEFT,
         MouseButton::Right => button_codes::BTN_RIGHT,
-        // Middle/Other are rejected by `validate_button` before `send`.
-        MouseButton::Middle => 0x112,
+        // Middle is accepted through the generic libei BUTTON capability;
+        // Other buttons are rejected by `validate_button` before `send`.
+        MouseButton::Middle => button_codes::BTN_MIDDLE,
         MouseButton::Other(code) => u32::from(code),
         // Non-exhaustive enum from touchpad-core: future variants are not
         // emitted by the M6 adapter (validate_button rejects them).
@@ -1090,6 +1095,39 @@ mod tests {
             FakeWireCall::Frame { device },
         ];
         assert_eq!(log, expected);
+    }
+
+    #[test]
+    fn middle_button_uses_generic_button_capability_and_btn_middle_code() {
+        let (mut sink, device) = prepared_sink();
+        sink.submit(OutputEvent::ButtonDown(MouseButton::Middle))
+            .unwrap();
+        sink.submit(OutputEvent::ButtonUp(MouseButton::Middle))
+            .unwrap();
+
+        let log = sink.transport.log();
+        assert!(log.windows(4).any(|window| {
+            matches!(
+                window,
+                [
+                    FakeWireCall::Button {
+                        device: down_device,
+                        button: button_codes::BTN_MIDDLE,
+                        is_press: true,
+                    },
+                    FakeWireCall::Frame { device: down_frame },
+                    FakeWireCall::Button {
+                        device: up_device,
+                        button: button_codes::BTN_MIDDLE,
+                        is_press: false,
+                    },
+                    FakeWireCall::Frame { device: up_frame },
+                ] if *down_device == device
+                    && *down_frame == device
+                    && *up_device == device
+                    && *up_frame == device
+            )
+        }));
     }
 
     #[test]

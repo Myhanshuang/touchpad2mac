@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ContinuousGestureEvent, ContinuousGestureKind, ContinuousGesturePhase, DesktopAction,
-    OutputEvent,
+    MouseButton, OutputEvent,
 };
 
 pub const GESTURE_MAP_VERSION: u32 = 1;
@@ -84,6 +84,7 @@ impl GestureTrigger {
 pub enum GestureTarget {
     Passthrough,
     Disabled,
+    MiddleClick,
     NextWorkspace,
     PreviousWorkspace,
     ShowDesktop,
@@ -104,6 +105,7 @@ impl GestureTarget {
         match self {
             Self::Passthrough => "passthrough",
             Self::Disabled => "disabled",
+            Self::MiddleClick => "middle-click",
             Self::NextWorkspace => "next-workspace",
             Self::PreviousWorkspace => "previous-workspace",
             Self::ShowDesktop => "show-desktop",
@@ -123,6 +125,7 @@ impl GestureTarget {
         match value {
             "passthrough" => Some(Self::Passthrough),
             "disabled" => Some(Self::Disabled),
+            "middle-click" => Some(Self::MiddleClick),
             "next-workspace" => Some(Self::NextWorkspace),
             "previous-workspace" => Some(Self::PreviousWorkspace),
             "show-desktop" => Some(Self::ShowDesktop),
@@ -142,7 +145,7 @@ impl GestureTarget {
     #[must_use]
     pub const fn desktop_action(self) -> Option<DesktopAction> {
         match self {
-            Self::Passthrough | Self::Disabled => None,
+            Self::Passthrough | Self::Disabled | Self::MiddleClick => None,
             Self::NextWorkspace => Some(DesktopAction::NextWorkspace),
             Self::PreviousWorkspace => Some(DesktopAction::PreviousWorkspace),
             Self::ShowDesktop => Some(DesktopAction::ShowDesktop),
@@ -176,7 +179,7 @@ impl Default for GestureMapConfig {
         for trigger in ALL_GESTURE_TRIGGERS {
             bindings.insert(*trigger, GestureTarget::Passthrough);
         }
-        bindings.insert(GestureTrigger::ThreeFingerTap, GestureTarget::Lookup);
+        bindings.insert(GestureTrigger::ThreeFingerTap, GestureTarget::MiddleClick);
         Self {
             version: GESTURE_MAP_VERSION,
             three_finger_drag_enabled: true,
@@ -198,6 +201,11 @@ impl GestureMapConfig {
         if self.bindings.len() != ALL_GESTURE_TRIGGERS.len() {
             return Err(GestureMapError::UnexpectedBindingCount(self.bindings.len()));
         }
+        for (trigger, target) in &self.bindings {
+            if *target == GestureTarget::MiddleClick && *trigger != GestureTrigger::ThreeFingerTap {
+                return Err(GestureMapError::MiddleClickOnlyThreeFingerTap(*trigger));
+            }
+        }
         Ok(())
     }
 
@@ -214,8 +222,19 @@ impl GestureMapConfig {
         trigger: GestureTrigger,
         target: GestureTarget,
     ) -> Result<(), GestureMapError> {
-        self.bindings.insert(trigger, target);
-        self.validate()
+        let previous = self.bindings.insert(trigger, target);
+        if let Err(error) = self.validate() {
+            match previous {
+                Some(previous) => {
+                    self.bindings.insert(trigger, previous);
+                }
+                None => {
+                    self.bindings.remove(&trigger);
+                }
+            }
+            return Err(error);
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -264,6 +283,8 @@ pub enum GestureMapError {
     MissingTrigger(GestureTrigger),
     #[error("gesture map has unexpected binding count {0}")]
     UnexpectedBindingCount(usize),
+    #[error("middle-click is only valid for three-finger-tap, not {0:?}")]
+    MiddleClickOnlyThreeFingerTap(GestureTrigger),
 }
 
 pub const ALL_GESTURE_TRIGGERS: &[GestureTrigger] = &[
@@ -295,6 +316,7 @@ pub const ALL_GESTURE_TRIGGERS: &[GestureTrigger] = &[
 pub const ALL_GESTURE_TARGETS: &[GestureTarget] = &[
     GestureTarget::Passthrough,
     GestureTarget::Disabled,
+    GestureTarget::MiddleClick,
     GestureTarget::NextWorkspace,
     GestureTarget::PreviousWorkspace,
     GestureTarget::ShowDesktop,
@@ -375,11 +397,21 @@ pub fn route_continuous_gesture(
 }
 
 #[must_use]
-pub fn route_three_finger_tap(config: &GestureMapConfig) -> Option<OutputEvent> {
+pub fn route_three_finger_tap(config: &GestureMapConfig) -> Vec<OutputEvent> {
     match config.target(GestureTrigger::ThreeFingerTap) {
-        GestureTarget::Disabled => None,
-        GestureTarget::Passthrough => Some(OutputEvent::DesktopAction(DesktopAction::Lookup)),
-        target => target.desktop_action().map(OutputEvent::DesktopAction),
+        GestureTarget::Disabled => Vec::new(),
+        GestureTarget::MiddleClick => vec![
+            OutputEvent::ButtonDown(MouseButton::Middle),
+            OutputEvent::ButtonUp(MouseButton::Middle),
+        ],
+        GestureTarget::Passthrough => {
+            vec![OutputEvent::DesktopAction(DesktopAction::Lookup)]
+        }
+        target => target
+            .desktop_action()
+            .map(OutputEvent::DesktopAction)
+            .into_iter()
+            .collect(),
     }
 }
 
@@ -478,18 +510,38 @@ mod tests {
     }
 
     #[test]
-    fn default_is_complete_and_preserves_legacy_tap() {
+    fn default_is_complete_and_maps_three_finger_tap_to_middle_click() {
         let config = GestureMapConfig::default();
         config.validate().unwrap();
         assert_eq!(config.bindings.len(), ALL_GESTURE_TRIGGERS.len());
         assert_eq!(
             config.target(GestureTrigger::ThreeFingerTap),
-            GestureTarget::Lookup
+            GestureTarget::MiddleClick
+        );
+        assert_eq!(
+            route_three_finger_tap(&config),
+            vec![
+                OutputEvent::ButtonDown(MouseButton::Middle),
+                OutputEvent::ButtonUp(MouseButton::Middle),
+            ]
         );
         assert_eq!(
             config.target(GestureTrigger::PinchIn),
             GestureTarget::Passthrough
         );
+    }
+
+    #[test]
+    fn middle_click_target_is_restricted_to_three_finger_tap_atomically() {
+        let mut config = GestureMapConfig::default();
+        let before = config.clone();
+        assert!(matches!(
+            config.set_target(GestureTrigger::PinchIn, GestureTarget::MiddleClick),
+            Err(GestureMapError::MiddleClickOnlyThreeFingerTap(
+                GestureTrigger::PinchIn
+            ))
+        ));
+        assert_eq!(config, before);
     }
 
     #[test]
