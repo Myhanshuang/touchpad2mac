@@ -9,6 +9,7 @@ The project reads Linux evdev multitouch input, decodes Type-B contact frames, r
 ## Highlights
 
 - Automatic discovery of compatible `/dev/input/event*` touchpads.
+- Libinput-inspired disable-while-typing (DWT) using read-only monitoring of paired internal keyboards; no keyboard grab or key logging.
 - One-finger pointer motion with configurable dead zone, tracking speed, and gain curve.
 - Tap, double tap, tap-and-drag, physical click, and secondary click handling.
 - Two-finger pixel scrolling with direction filtering and axis locking.
@@ -144,7 +145,11 @@ settings.json
 │   ├── scroll
 │   ├── gesture
 │   └── drag
-└── gestures
+├── gestures
+└── dwt
+    ├── enabled
+    ├── short_timeout_ms
+    └── long_timeout_ms
 ```
 
 Settings can be changed from the CLI:
@@ -161,6 +166,8 @@ target/release/touchpadctl settings-gui settings.json settings.html
 ```
 
 The HTML editor is self-contained. It does not connect to the input runtime, open devices, or perform live apply by itself.
+
+DWT is enabled by default. The runtime automatically pairs internal typing keyboards, opens their evdev nodes **read-only**, selects `CLOCK_MONOTONIC`, and immediately reduces qualifying key presses to anonymous timestamps. Raw key codes are never written to the touch trace or forwarded into `touchpad-core`. The default timing follows libinput's short/continued typing model: **200 ms** after an isolated key press and **500 ms** while typing continues. Standalone modifiers do not arm DWT, and keyboard activity does not interrupt an already committed pointer, scroll, gesture, or drag interaction.
 
 With `m19-live-v1 --watch-settings`, a valid settings update is applied immediately when the interaction state is neutral. If an interaction is active, only the newest valid generation is queued and applied after returning to a neutral boundary. Invalid or partially-written JSON is rejected while the last-known-good configuration remains active.
 

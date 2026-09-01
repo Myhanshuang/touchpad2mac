@@ -5,7 +5,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    FeelConfig, FeelConfigError, GestureMapConfig, GestureMapError, GestureTarget, GestureTrigger,
+    DwtConfig, DwtConfigError, FeelConfig, FeelConfigError, GestureMapConfig, GestureMapError,
+    GestureTarget, GestureTrigger,
 };
 
 pub const USER_SETTINGS_VERSION: u32 = 1;
@@ -16,6 +17,10 @@ pub struct UserSettings {
     pub version: u32,
     pub feel: FeelConfig,
     pub gestures: GestureMapConfig,
+    /// Disable-while-typing policy. `serde(default)` keeps existing v1 files
+    /// valid while adding the new optional section.
+    #[serde(default)]
+    pub dwt: DwtConfig,
 }
 
 impl Default for UserSettings {
@@ -24,6 +29,7 @@ impl Default for UserSettings {
             version: USER_SETTINGS_VERSION,
             feel: FeelConfig::default(),
             gestures: GestureMapConfig::default(),
+            dwt: DwtConfig::default(),
         }
     }
 }
@@ -37,6 +43,7 @@ impl UserSettings {
         self.gestures
             .validate()
             .map_err(UserSettingsError::Gestures)?;
+        self.dwt.validate().map_err(UserSettingsError::Dwt)?;
         Ok(())
     }
 
@@ -46,6 +53,7 @@ impl UserSettings {
             version: USER_SETTINGS_VERSION,
             feel: FeelConfig::default(),
             gestures: GestureMapConfig::macos_inspired(),
+            dwt: DwtConfig::default(),
         }
     }
 
@@ -56,6 +64,22 @@ impl UserSettings {
             self.feel
                 .set_key(feel_key, value)
                 .map_err(UserSettingsError::Feel)
+        } else if let Some(dwt_key) = key.strip_prefix("dwt.") {
+            match dwt_key {
+                "enabled" => {
+                    self.dwt.enabled = parse_bool(value)?;
+                    Ok(())
+                }
+                "short-timeout-ms" => {
+                    self.dwt.short_timeout_ms = parse_u64(value)?;
+                    Ok(())
+                }
+                "long-timeout-ms" => {
+                    self.dwt.long_timeout_ms = parse_u64(value)?;
+                    Ok(())
+                }
+                _ => Err(UserSettingsError::UnknownKey(key.to_string())),
+            }
         } else if let Some(trigger_name) = key.strip_prefix("gesture.") {
             if trigger_name == "three-finger-drag-enabled" {
                 self.gestures.three_finger_drag_enabled = value
@@ -92,6 +116,8 @@ pub enum UserSettingsError {
     UnsupportedVersion(u32),
     #[error("invalid feel settings: {0}")]
     Feel(FeelConfigError),
+    #[error("invalid DWT settings: {0}")]
+    Dwt(DwtConfigError),
     #[error("invalid gesture settings: {0}")]
     Gestures(GestureMapError),
     #[error("unknown settings key {0:?}")]
@@ -100,4 +126,48 @@ pub enum UserSettingsError {
     UnknownGesture(String),
     #[error("unknown gesture target {0:?}")]
     UnknownTarget(String),
+}
+
+fn parse_bool(value: &str) -> Result<bool, UserSettingsError> {
+    value
+        .parse::<bool>()
+        .map_err(|_| UserSettingsError::UnknownTarget(value.to_string()))
+}
+
+fn parse_u64(value: &str) -> Result<u64, UserSettingsError> {
+    value
+        .parse::<u64>()
+        .map_err(|_| UserSettingsError::UnknownTarget(value.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_v1_json_without_dwt_receives_defaults() {
+        let value = serde_json::json!({
+            "version": 1,
+            "feel": FeelConfig::default(),
+            "gestures": GestureMapConfig::default()
+        });
+        let settings: UserSettings = serde_json::from_value(value).unwrap();
+        assert_eq!(settings.dwt, DwtConfig::default());
+        settings.validate().unwrap();
+    }
+
+    #[test]
+    fn dwt_keys_are_editable_and_invalid_edits_roll_back() {
+        let mut settings = UserSettings::default();
+        settings.set_key("dwt.enabled", "false").unwrap();
+        settings.set_key("dwt.short-timeout-ms", "150").unwrap();
+        settings.set_key("dwt.long-timeout-ms", "450").unwrap();
+        assert!(!settings.dwt.enabled);
+        assert_eq!(settings.dwt.short_timeout_ms, 150);
+        assert_eq!(settings.dwt.long_timeout_ms, 450);
+
+        let before = settings.clone();
+        assert!(settings.set_key("dwt.short-timeout-ms", "900").is_err());
+        assert_eq!(settings, before);
+    }
 }

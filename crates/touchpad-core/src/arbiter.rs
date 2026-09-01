@@ -3402,9 +3402,40 @@ impl Arbiter {
     /// policy. No OS keyboard state is read inside core; callers that do not
     /// have such a signal simply never call this method.
     pub fn note_typing(&mut self, timestamp: Monotonic) {
-        if self.config.is_robustness_enabled() {
-            self.state.robustness.note_typing(timestamp);
+        if self.is_dwt_protected_interaction() {
+            return;
         }
+        if let Some(dwt) = self
+            .config
+            .robustness_config()
+            .map(|robustness| robustness.dwt_config().clone())
+        {
+            self.state
+                .robustness
+                .note_typing_with_config(&dwt, timestamp);
+        }
+    }
+
+    /// Whether current ownership is clearly intentional touch interaction.
+    /// Mirroring current libinput DWT behavior, a keyboard event arriving
+    /// during committed pointer motion, scrolling, a committed gesture, or
+    /// an active drag/button hold must not arm DWT and interrupt that work.
+    #[must_use]
+    pub fn is_dwt_protected_interaction(&self) -> bool {
+        use crate::three_finger_drag::ThreeFingerDragPhase;
+
+        self.state.lifecycle == Lifecycle::Committed
+            || self.state.scroll_open
+            || self.state.gesture.committed().is_some()
+            || matches!(
+                self.state.three_finger_drag.phase(),
+                ThreeFingerDragPhase::Dragging | ThreeFingerDragPhase::Locked
+            )
+            || self.state.physical_left
+            || self.state.synthetic_left
+            || self.state.physical_right
+            || self.state.synthetic_right
+            || self.state.latched_right_owned
     }
 
     /// The sticky M13 role for a currently tracked contact, when robustness
@@ -4426,6 +4457,14 @@ impl<S: OutputSink> ArbiterSink<S> {
     /// never accepts reconfiguration before cleanup.
     pub fn try_replace_config(&mut self, config: ArbiterConfig) -> bool {
         !self.faulted && self.arbiter.try_replace_config(config)
+    }
+
+    /// Supplies anonymous typing activity to the arbiter. No output event is
+    /// generated directly; it only affects classification of future touches.
+    pub fn note_typing(&mut self, timestamp: Monotonic) {
+        if !self.faulted {
+            self.arbiter.note_typing(timestamp);
+        }
     }
 
     /// Processes one frame and submits the resulting events to the sink,

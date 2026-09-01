@@ -133,6 +133,24 @@ stderr 打印 `auto-selected touchpad: ...`。如果发现多个候选，takeove
 提示重跑并加上例如 `--device /dev/input/event15`。旧的
 `takeover DEVICE TRACE ...` 写法仍兼容，但新命令建议统一使用 `--device`。
 
+M19 同时会为 DWT 自动寻找与内置触控板配对的键盘。键盘节点只以
+`O_RDONLY | O_CLOEXEC` 打开，并设置为 `CLOCK_MONOTONIC`；**不会对键盘执行
+EVIOCGRAB，也不会记录 keycode 到 trace/log**。默认首次有效打字按键后抑制
+新的触摸 200 ms，连续输入时延长为 500 ms。单独的 Ctrl/Alt/Shift/Meta/Fn
+等修饰键不触发 DWT；已经开始的 pointer、scroll、gesture、drag 不会因为随后
+按键而被强行取消。
+
+可实时调整：
+
+```bash
+$TP settings-patch settings.json dwt.enabled=true
+$TP settings-patch settings.json dwt.short-timeout-ms=200
+$TP settings-patch settings.json dwt.long-timeout-ms=500
+```
+
+若运行时无法读取配对键盘，会打印 `DWT unavailable` 并继续正常使用触控板，
+而不是让 takeover 整体失败。此时检查对应 `/dev/input/event*` 的读取 ACL。
+
 Terminal B：
 
 ```bash

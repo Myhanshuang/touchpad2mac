@@ -79,6 +79,7 @@ pub mod decode;
 pub mod device;
 pub mod event;
 pub mod grab;
+pub mod keyboard;
 pub mod rawevent;
 pub mod recorder;
 pub mod replay;
@@ -103,6 +104,7 @@ pub use event::{
     INPUT_EVENT_SIZE,
 };
 pub use grab::{DeviceHandle, GrabError};
+pub use keyboard::{discover_keyboards, KeyboardCandidate, KeyboardError, KeyboardMonitor};
 pub use rawevent::RawEvent;
 pub use recorder::{RawEventRecorder, RecorderError, TraceRecorder};
 pub use replay::ReplayDecodeError;

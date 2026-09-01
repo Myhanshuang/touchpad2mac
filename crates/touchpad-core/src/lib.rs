@@ -25,6 +25,7 @@ pub mod axis;
 pub mod contact;
 pub mod device;
 pub mod diagnostic;
+pub mod dwt;
 pub mod feel;
 pub mod fidelity;
 pub mod gesture;
@@ -62,6 +63,9 @@ pub use axis::{
 pub use contact::{Contact, ContactFrame, ContactState, PhysicalButtons};
 pub use device::{AxisId, DeviceDescriptor};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticLevel};
+pub use dwt::{
+    DwtConfig, DwtConfigError, DEFAULT_DWT_LONG_TIMEOUT_MS, DEFAULT_DWT_SHORT_TIMEOUT_MS,
+};
 pub use feel::{
     feel_parameter_specs, DragFeel, FeelConfig, FeelConfigError, FeelParameterSpec, GestureFeel,
     PointerFeel, ScrollFeel, FEEL_CONFIG_VERSION,

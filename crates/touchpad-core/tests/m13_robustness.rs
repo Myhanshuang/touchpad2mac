@@ -91,6 +91,45 @@ fn typing_signal_suppresses_only_new_contacts_inside_window() {
 }
 
 #[test]
+fn typing_during_committed_pointer_does_not_arm_dwt_for_next_touch() {
+    let mut a = Arbiter::new(config(false));
+    a.frame(&frame(
+        1,
+        0,
+        vec![contact(1, ContactState::Began, 20.0, 20.0, None)],
+    ))
+    .unwrap();
+    let committed = a
+        .frame(&frame(
+            2,
+            10,
+            vec![contact(1, ContactState::Active, 22.0, 20.0, None)],
+        ))
+        .unwrap();
+    assert!(committed
+        .events
+        .iter()
+        .any(|event| matches!(event, OutputEvent::PointerMove { .. })));
+    assert!(a.is_dwt_protected_interaction());
+
+    a.note_typing(Monotonic::from_nanos(20_000_000));
+    a.frame(&frame(
+        3,
+        30,
+        vec![contact(1, ContactState::Ended, 22.0, 20.0, None)],
+    ))
+    .unwrap();
+    a.frame(&frame(
+        4,
+        40,
+        vec![contact(2, ContactState::Began, 20.0, 20.0, None)],
+    ))
+    .unwrap();
+    assert_eq!(a.contact_role(2), Some(ContactRole::Finger));
+    assert_eq!(a.tracking_id(), Some(2));
+}
+
+#[test]
 fn edge_start_stays_suppressed_after_moving_to_center() {
     let mut a = Arbiter::new(config(true));
     a.frame(&frame(

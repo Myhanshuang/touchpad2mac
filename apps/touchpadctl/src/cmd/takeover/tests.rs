@@ -501,6 +501,67 @@ fn auto_discovery_refuses_multiple_candidates_and_lists_device_flags() {
     assert!(text.contains("--device /dev/input/event15"), "{text}");
 }
 
+#[test]
+fn m13_dwt_reads_internal_keyboard_without_grab_and_suppresses_new_touch() {
+    const BUS_I8042: u16 = 0x11;
+    const KEY_Q: u16 = 16;
+    const KEY_ENTER: u16 = 28;
+    const KEY_A: u16 = 30;
+    const KEY_Z: u16 = 44;
+    const KEY_SPACE: u16 = 57;
+
+    let keyboard_path = PathBuf::from("/dev/input/event1");
+    let mut touchpad = mock_touchpad();
+    touchpad.push_raw(one_frame(1, 100_000, 10, 0, 100, 100, false));
+    touchpad.push_raw(one_frame(1, 150_000, 10, 0, 600, 100, false));
+    touchpad.push_eof();
+
+    let mut keyboard = MockDevice::new("AT Translated Set 2 keyboard");
+    keyboard.id.bustype = BUS_I8042;
+    for key in [KEY_Q, KEY_A, KEY_Z, KEY_SPACE, KEY_ENTER] {
+        keyboard.add_key(key);
+    }
+    keyboard.push_event(1, 0, EV_KEY, KEY_A, 1);
+    keyboard.push_event(1, 10_000, EV_KEY, KEY_A, 0);
+
+    let mut h = Harness::happy();
+    h.sys
+        .set_dir_entries(vec![device_path(), keyboard_path.clone()]);
+    h.with_device(touchpad);
+    h.sys.add_device(&keyboard_path, keyboard);
+    h.with_readiness(vec![true, true, true]);
+    let mut env = h.env();
+    let result = super::run(
+        &mut env,
+        device_path().as_path(),
+        &temp_trace("dwt"),
+        60,
+        "m13-robust-v1",
+        ProfileInputs::default(),
+    );
+    assert!(result.is_err(), "EOF ends the bounded mock stream");
+    drop(env);
+
+    assert!(
+        h.streaming_state.borrow().submitted.is_empty(),
+        "typing-window touch must not reach desktop output: {:?}",
+        h.streaming_state.borrow().submitted
+    );
+    assert_eq!(
+        h.sys.count(|call| matches!(call, MockCall::Grab(_, true))),
+        1,
+        "only the touchpad may be exclusively grabbed"
+    );
+    assert_eq!(
+        h.sys.count(|call| matches!(call, MockCall::Grab(_, false))),
+        1,
+        "only the touchpad needs an ungrab"
+    );
+    let err = String::from_utf8(h.err).unwrap();
+    assert!(err.contains("DWT keyboard:"), "{err}");
+    assert!(err.contains("read-only; no EVIOCGRAB"), "{err}");
+}
+
 /// The position of the first marker matching a predicate.
 fn pos(timeline: &[String], marker: &str) -> usize {
     timeline
@@ -1456,6 +1517,7 @@ fn cleanup_success_releases_owed_state_and_retry_is_a_no_op() {
     // — and a controlled signal stop reports clean (exit 0).
     let mut guard = TakeoverCleanup {
         runtime: None,
+        keyboards: Vec::new(),
         unattached_recorder: None,
     };
     let result = finalize(&mut env, &mut guard, StopReason::Signal);
@@ -1525,6 +1587,7 @@ fn fallback_drop_runs_ordered_cleanup() {
     runtime.set_recorder(recorder);
     let guard = TakeoverCleanup {
         runtime: Some(runtime),
+        keyboards: Vec::new(),
         unattached_recorder: None,
     };
     // Drop without finalize: the fallback must release the output session

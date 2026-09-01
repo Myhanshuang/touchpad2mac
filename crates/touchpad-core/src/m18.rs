@@ -2,7 +2,10 @@
 
 #![forbid(unsafe_code)]
 
-use crate::{ArbiterConfig, M17Profile, M17ProfileError, UserSettings, UserSettingsError};
+use crate::{
+    ArbiterConfig, M17Profile, M17ProfileError, RobustnessConfigError, UserSettings,
+    UserSettingsError,
+};
 
 pub const M18_REMAP_V1_NAME: &str = "m18-remap-v1";
 
@@ -12,6 +15,8 @@ pub enum M18ProfileError {
     Settings(UserSettingsError),
     #[error("invalid M17 base profile: {0}")]
     M17(M17ProfileError),
+    #[error("invalid DWT robustness overlay: {0}")]
+    Robustness(RobustnessConfigError),
     #[error("M17 base profile is missing the M15 three-finger drag stage")]
     MissingThreeFingerDrag,
 }
@@ -41,7 +46,13 @@ impl M18Profile {
     }
 
     pub fn arbiter_config(&self) -> Result<ArbiterConfig, M18ProfileError> {
-        let base = self.base.arbiter_config().map_err(M18ProfileError::M17)?;
+        let mut base = self.base.arbiter_config().map_err(M18ProfileError::M17)?;
+        if let Some(robustness) = base.robustness_config().cloned() {
+            let robustness = robustness
+                .with_dwt(self.settings.dwt.clone())
+                .map_err(M18ProfileError::Robustness)?;
+            base = base.with_robustness(robustness);
+        }
         let drag = base
             .three_finger_drag_config()
             .cloned()

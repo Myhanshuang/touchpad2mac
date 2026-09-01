@@ -55,5 +55,10 @@
       "thumb-three-spread": "show-desktop",
       "three-finger-tap": "disabled"
     }
+  },
+  "dwt": {
+    "enabled": true,
+    "short_timeout_ms": 200,
+    "long_timeout_ms": 500
   }
 }

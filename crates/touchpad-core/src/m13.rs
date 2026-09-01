@@ -4,7 +4,9 @@
 
 use std::time::Duration;
 
-use crate::{ArbiterConfig, M12Profile, M12ProfileError, RobustnessConfig, RobustnessConfigError};
+use crate::{
+    ArbiterConfig, DwtConfig, M12Profile, M12ProfileError, RobustnessConfig, RobustnessConfigError,
+};
 
 pub const M13_ROBUST_V1_NAME: &str = "m13-robust-v1";
 
@@ -31,6 +33,7 @@ impl M13Profile {
         // suppression reports unavailable until a device boundary supplies
         // dimensions explicitly; no CIRQ-only size leaks into generic core.
         let robustness = RobustnessConfig::new(12.0, 8.0, 3.0, 0.06, Duration::from_millis(500))
+            .and_then(|config| config.with_dwt(DwtConfig::default()))
             .map_err(M13ProfileError::Robustness)?;
         Ok(Self { base, robustness })
     }

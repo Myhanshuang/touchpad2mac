@@ -12,11 +12,33 @@ settings.json
 │   ├── scroll
 │   ├── gesture
 │   └── drag
-└── gestures   # M18 手势 → 功能映射
+├── gestures   # M18 手势 → 功能映射
+└── dwt        # 输入时抑制新的触摸接触
 ```
 
 严格 schema 的意义是：拼错字段、超范围值、破坏阈值优先级的组合会在进入
 live path 前直接拒绝，不会静默猜一个值。
+
+### Disable While Typing
+
+`dwt` 默认开启，并参考 libinput 的两阶段 timeout：
+
+| 参数 | 默认值 | 作用 |
+| --- | ---: | --- |
+| `dwt.enabled` | `true` | 是否启用输入时抑制新触摸 |
+| `dwt.short_timeout_ms` | `200` | 第一次/孤立按键后的抑制窗口 |
+| `dwt.long_timeout_ms` | `500` | 连续输入时使用的抑制窗口 |
+
+Linux 层只监听自动配对的内置打字键盘。键盘 evdev fd 以只读方式打开，设置
+`CLOCK_MONOTONIC` 后与触控板事件共用时间域；程序不会 grab 键盘，也不会把
+keycode、按键文本或键盘事件写入触控 trace。只有“发生了一次有效 typing”这个
+时间戳进入 core。
+
+Ctrl/Alt/Shift/Meta/Fn 等单独修饰键不会触发 DWT。DWT 只影响**新开始的触摸**：
+如果 pointer 已经 committed、正在双指滚动、连续手势已经 committed，或正在
+拖拽/按住按钮，后来的键盘输入不会取消这次交互。打字窗口内开始的触摸会以
+`TypingSuppressed` 身份保持到该 tracking-id 抬起，因此 timeout 到期时也不会
+在半途中突然恢复成指针。
 
 ## 2. 手感参数
 

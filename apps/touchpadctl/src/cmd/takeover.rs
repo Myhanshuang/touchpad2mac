@@ -110,8 +110,8 @@ use touchpad_desktop::capabilities::Capability;
 use touchpad_desktop::{DesktopOutputError, StreamingOutput};
 use touchpad_linux::sys::{Fd, SysError};
 use touchpad_linux::{
-    enumerate, EvdevRuntime, OpenError, ProbeError, ProbeVerdict, RawEventRecorder, RecorderError,
-    RuntimeError, ShutdownReport, TakeoverBridge,
+    discover_keyboards, enumerate, EvdevRuntime, KeyboardMonitor, OpenError, ProbeError,
+    ProbeVerdict, RawEventRecorder, RecorderError, RuntimeError, ShutdownReport, TakeoverBridge,
 };
 use touchpad_trace::TraceHeader;
 
@@ -530,6 +530,9 @@ enum StopReason {
 /// disarmed guard's `Drop` is a no-op (no double release).
 struct TakeoverCleanup {
     runtime: Option<EvdevRuntime<Bridge>>,
+    /// Read-only keyboard listeners used by DWT. They are never grabbed and
+    /// are closed before the touchpad runtime is released.
+    keyboards: Vec<KeyboardMonitor>,
     /// A recorder created but not yet attached to the runtime (its header
     /// flush failed): finalized by `finalize`/`Drop` before the device
     /// release.
@@ -550,6 +553,7 @@ impl Drop for TakeoverCleanup {
         if let Some(mut recorder) = self.unattached_recorder.take() {
             let _ = recorder.finish();
         }
+        self.keyboards.clear();
         // `self.runtime` drops here: its `Drop` finalizes the attached
         // recorder and releases the device (ungrab then close, each at most
         // once) — after the output session release above.
@@ -700,6 +704,10 @@ pub(crate) fn run<'a>(
             )));
         }
     };
+    let dwt_config = selected
+        .arbiter_config
+        .robustness_config()
+        .map(|robustness| robustness.dwt_config().clone());
     let mut settings_watcher = if inputs.watch_settings {
         let path = inputs.settings_path.ok_or_else(|| {
             CommandFailure::Unexpected(
@@ -755,8 +763,66 @@ pub(crate) fn run<'a>(
 
     let mut guard = TakeoverCleanup {
         runtime: Some(runtime),
+        keyboards: Vec::new(),
         unattached_recorder: None,
     };
+
+    if dwt_config.is_some() {
+        let touchpad_id = guard
+            .runtime
+            .as_ref()
+            .expect("fresh runtime exists")
+            .input_id();
+        match discover_keyboards(&*env.sys, &resolved_device, touchpad_id) {
+            Ok(candidates) => {
+                for candidate in candidates {
+                    match KeyboardMonitor::open(Rc::clone(&env.sys), &candidate) {
+                        Ok(monitor) => {
+                            writeln!(
+                                env.err,
+                                "DWT keyboard: {} ({}, read-only; no EVIOCGRAB)",
+                                candidate.path.display(),
+                                candidate.name
+                            )
+                            .map_err(|error| {
+                                CommandFailure::Unexpected(format!(
+                                    "could not write DWT status: {error}"
+                                ))
+                            })?;
+                            guard.keyboards.push(monitor);
+                        }
+                        Err(error) => {
+                            writeln!(env.err, "DWT keyboard skipped: {error}").map_err(
+                                |write_error| {
+                                    CommandFailure::Unexpected(format!(
+                                        "could not write DWT status: {write_error}"
+                                    ))
+                                },
+                            )?;
+                        }
+                    }
+                }
+                if guard.keyboards.is_empty() {
+                    writeln!(
+                        env.err,
+                        "DWT unavailable: no paired internal typing keyboard found; touchpad remains usable"
+                    )
+                    .map_err(|error| {
+                        CommandFailure::Unexpected(format!("could not write DWT status: {error}"))
+                    })?;
+                }
+            }
+            Err(error) => {
+                writeln!(env.err, "DWT unavailable: {error}; touchpad remains usable").map_err(
+                    |write_error| {
+                        CommandFailure::Unexpected(format!(
+                            "could not write DWT status: {write_error}"
+                        ))
+                    },
+                )?;
+            }
+        }
+    }
 
     // Step 3: prepare the streaming output session (cancellable, bounded
     // exactly as M6). A failure/cancel here must not leave a live session or
@@ -1025,6 +1091,40 @@ fn run_loop(
             }
             Err(error) => return StopReason::Stream(RuntimeError::Read(error)),
         };
+        let mut keyboard_index = 0;
+        while keyboard_index < guard.keyboards.len() {
+            let keyboard_ready = guard.keyboards[keyboard_index]
+                .fd()
+                .and_then(|keyboard_fd| env.sys.poll(keyboard_fd, Duration::ZERO).ok())
+                .unwrap_or(false);
+            if !keyboard_ready {
+                keyboard_index += 1;
+                continue;
+            }
+            match guard.keyboards[keyboard_index].read_activity() {
+                Ok(activity) => {
+                    if let Some(bridge) = guard
+                        .runtime
+                        .as_mut()
+                        .and_then(|runtime| runtime.sink_mut())
+                    {
+                        for timestamp in activity {
+                            bridge.note_typing(timestamp);
+                        }
+                    }
+                    keyboard_index += 1;
+                }
+                Err(error) => {
+                    if let Err(write_error) = writeln!(
+                        env.err,
+                        "DWT keyboard removed after read failure: {error}; continuing without it"
+                    ) {
+                        return StopReason::StatusOutput(write_error);
+                    }
+                    guard.keyboards.remove(keyboard_index);
+                }
+            }
+        }
         if ready {
             match guard
                 .runtime
@@ -1167,7 +1267,11 @@ fn finalize(
         drop(recorder);
     }
 
-    // 3. Runtime ordered shutdown: attached recorder finalize → EVIOCGRAB(0)
+    // 3. Close read-only keyboard listeners. They were never grabbed, so
+    //    this is only fd cleanup and does not alter keyboard delivery.
+    guard.keyboards.clear();
+
+    // 4. Runtime ordered shutdown: attached recorder finalize → EVIOCGRAB(0)
     //    at most once → close the fd exactly once (idempotent; pre-grab
     //    failures issue zero ungrab ioctls).
     let report = match guard.runtime.take() {
@@ -1181,7 +1285,7 @@ fn finalize(
         },
     };
 
-    // 4. Status output: every step's actual result printed from the same
+    // 5. Status output: every step's actual result printed from the same
     //    source as the exit decision; a status-write failure is recorded and
     //    reported (never silently dropped).
     let mut status_failure: Option<std::io::Error> = None;

@@ -157,7 +157,7 @@ use crate::grab::{DeviceHandle, GrabError};
 use crate::recorder::{RawEventRecorder, RecorderError};
 use crate::sink::FrameSink;
 use crate::snapshot::EvdevSnapshotSource;
-use crate::sys::{Fd, Sys, SysError};
+use crate::sys::{Fd, InputId, Sys, SysError};
 
 /// Number of kernel events read per [`EvdevRuntime::step`].
 pub const READ_BUFFER_EVENTS: usize = 64;
@@ -343,6 +343,10 @@ pub struct ShutdownReport {
 pub struct EvdevRuntime<S: FrameSink> {
     sys: Rc<dyn Sys>,
     device: Option<DeviceHandle>,
+    /// Kernel identity captured from the exact session fd during the shared
+    /// capability probe. DWT keyboard pairing reuses this value instead of
+    /// issuing a second identity ioctl later.
+    input_id: InputId,
     /// The Type-B decoder, always present until [`EvdevRuntime::into_sink`]
     /// takes it out (an `Option` so the consuming accessor can move it out
     /// despite the ordered `Drop` impl, M5 review R4).
@@ -493,6 +497,7 @@ impl<S: FrameSink> EvdevRuntime<S> {
         Ok(Self {
             sys,
             device: Some(handle),
+            input_id: data.id,
             decoder: Some(decoder),
             phase: RuntimePhase::Running,
             buf: vec![0u8; READ_BUFFER_BYTES],
@@ -571,6 +576,12 @@ impl<S: FrameSink> EvdevRuntime<S> {
     #[must_use]
     pub fn descriptor(&self) -> Option<&DeviceDescriptor> {
         self.descriptor.as_ref()
+    }
+
+    /// Kernel `input_id` captured from the exact session fd during open.
+    #[must_use]
+    pub const fn input_id(&self) -> InputId {
+        self.input_id
     }
 
     /// The attached recorder, if any (for status reporting such as

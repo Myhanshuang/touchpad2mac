@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use crate::{Contact, ContactFrame, ContactState, Millimeters, Monotonic};
+use crate::{Contact, ContactFrame, ContactState, DwtConfig, Millimeters, Monotonic};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContactRole {
@@ -31,7 +31,7 @@ pub struct RobustnessConfig {
     thumb_major_mm: f64,
     edge_zone_mm: f64,
     jitter_radius_mm: f64,
-    typing_suppression: Duration,
+    dwt: DwtConfig,
     surface_size_mm: Option<(f64, f64)>,
 }
 
@@ -61,14 +61,27 @@ impl RobustnessConfig {
         if typing_suppression.is_zero() {
             return Err(RobustnessConfigError::ZeroTypingSuppression);
         }
+        let dwt = DwtConfig {
+            enabled: true,
+            short_timeout_ms: duration_ms(typing_suppression),
+            long_timeout_ms: duration_ms(typing_suppression),
+        };
         Ok(Self {
             palm_major_mm,
             thumb_major_mm,
             edge_zone_mm,
             jitter_radius_mm,
-            typing_suppression,
+            dwt,
             surface_size_mm: None,
         })
+    }
+
+    /// Replaces the legacy fixed typing timeout with a validated DWT policy.
+    pub fn with_dwt(mut self, dwt: DwtConfig) -> Result<Self, RobustnessConfigError> {
+        dwt.validate()
+            .map_err(|error| RobustnessConfigError::Dwt(error.to_string()))?;
+        self.dwt = dwt;
+        Ok(self)
     }
 
     pub fn with_surface_size_mm(
@@ -104,7 +117,11 @@ impl RobustnessConfig {
     }
     #[must_use]
     pub const fn typing_suppression(&self) -> Duration {
-        self.typing_suppression
+        self.dwt.long_timeout()
+    }
+    #[must_use]
+    pub const fn dwt_config(&self) -> &DwtConfig {
+        &self.dwt
     }
     #[must_use]
     pub const fn surface_size_mm(&self) -> Option<(f64, f64)> {
@@ -120,6 +137,8 @@ pub enum RobustnessConfigError {
     InvalidOrdering(&'static str),
     #[error("typing suppression duration must be non-zero")]
     ZeroTypingSuppression,
+    #[error("invalid DWT configuration: {0}")]
+    Dwt(String),
     #[error("invalid touch-surface dimensions for edge suppression")]
     InvalidSurface,
 }
@@ -135,12 +154,34 @@ struct TrackedContact {
 pub struct RobustnessState {
     tracked: Vec<TrackedContact>,
     last_typing: Option<Monotonic>,
+    typing_deadline: Option<Monotonic>,
     typing_signal_seen: bool,
 }
 
 impl RobustnessState {
     pub fn note_typing(&mut self, timestamp: Monotonic) {
         self.last_typing = Some(timestamp);
+        self.typing_deadline = Some(timestamp.saturating_add(Duration::from_millis(500)));
+        self.typing_signal_seen = true;
+    }
+
+    /// Records one anonymous qualifying typing event using libinput-style
+    /// short/long quiet windows.  A second key while the first window is
+    /// still active upgrades the deadline to the long timeout.
+    pub fn note_typing_with_config(&mut self, config: &DwtConfig, timestamp: Monotonic) {
+        if !config.enabled {
+            return;
+        }
+        let continued = self
+            .typing_deadline
+            .is_some_and(|deadline| timestamp <= deadline);
+        let timeout = if continued {
+            config.long_timeout()
+        } else {
+            config.short_timeout()
+        };
+        self.last_typing = Some(timestamp);
+        self.typing_deadline = Some(timestamp.saturating_add(timeout));
         self.typing_signal_seen = true;
     }
 
@@ -269,11 +310,20 @@ fn classify_new(
 }
 
 fn typing_active(config: &RobustnessConfig, state: &RobustnessState, now: Monotonic) -> bool {
-    let Some(last) = state.last_typing else {
+    if !config.dwt.enabled {
+        return false;
+    }
+    let (Some(last), Some(deadline)) = (state.last_typing, state.typing_deadline) else {
         return false;
     };
-    now.duration_since(last)
-        .is_some_and(|elapsed| elapsed <= config.typing_suppression)
+    // `last <= now` makes processing order safe when keyboard and touchpad
+    // fds wake in the same poll: a future keyboard event cannot suppress an
+    // older touch frame merely because its fd happened to be drained first.
+    now >= last && now <= deadline
+}
+
+fn duration_ms(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
 fn edge_start(config: &RobustnessConfig, contact: &Contact) -> bool {
@@ -423,6 +473,69 @@ mod tests {
             &f(700, vec![c(2, ContactState::Began, 20.0, 20.0, None)]),
         );
         assert_eq!(later.frame.contacts.len(), 1);
+    }
+
+    #[test]
+    fn dwt_uses_short_then_long_libinput_style_windows() {
+        let config = cfg().with_dwt(DwtConfig::default()).unwrap();
+        let mut state = RobustnessState::default();
+        state.note_typing_with_config(config.dwt_config(), Monotonic::ZERO);
+        assert!(filter_frame(
+            &config,
+            &mut state,
+            &f(199, vec![c(1, ContactState::Began, 20.0, 20.0, None)]),
+        )
+        .frame
+        .contacts
+        .is_empty());
+        assert_eq!(
+            filter_frame(
+                &config,
+                &mut state,
+                &f(201, vec![c(2, ContactState::Began, 20.0, 20.0, None)]),
+            )
+            .frame
+            .contacts
+            .len(),
+            1
+        );
+
+        let mut state = RobustnessState::default();
+        state.note_typing_with_config(config.dwt_config(), Monotonic::ZERO);
+        state.note_typing_with_config(config.dwt_config(), Monotonic::from_nanos(100_000_000));
+        assert!(filter_frame(
+            &config,
+            &mut state,
+            &f(550, vec![c(3, ContactState::Began, 20.0, 20.0, None)]),
+        )
+        .frame
+        .contacts
+        .is_empty());
+        assert_eq!(
+            filter_frame(
+                &config,
+                &mut state,
+                &f(601, vec![c(4, ContactState::Began, 20.0, 20.0, None)]),
+            )
+            .frame
+            .contacts
+            .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn future_keyboard_timestamp_cannot_suppress_older_touch_frame() {
+        let config = cfg().with_dwt(DwtConfig::default()).unwrap();
+        let mut state = RobustnessState::default();
+        state.note_typing_with_config(config.dwt_config(), Monotonic::from_nanos(500_000_000));
+        let older_touch = filter_frame(
+            &config,
+            &mut state,
+            &f(499, vec![c(1, ContactState::Began, 20.0, 20.0, None)]),
+        );
+        assert_eq!(older_touch.frame.contacts.len(), 1);
+        assert_eq!(older_touch.classified, vec![(1, ContactRole::Finger)]);
     }
 
     #[test]

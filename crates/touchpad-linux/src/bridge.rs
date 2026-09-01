@@ -122,6 +122,15 @@ impl<S: OutputSink> TakeoverBridge<S> {
         !self.stopped && self.arbiter_sink.try_replace_config(config)
     }
 
+    /// Supplies an anonymous keyboard-typing timestamp to DWT. The bridge
+    /// intentionally exposes no key code or text and ignores signals after a
+    /// sticky output fault.
+    pub fn note_typing(&mut self, timestamp: Monotonic) {
+        if !self.stopped {
+            self.arbiter_sink.note_typing(timestamp);
+        }
+    }
+
     /// A mutable reference to the underlying output sink (M10: the takeover
     /// coordinator prepares a streaming output session through this accessor
     /// after the device is open but before any read or grab).
