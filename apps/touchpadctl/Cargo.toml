@@ -10,6 +10,7 @@ license.workspace = true
 touchpad-core = { path = "../../crates/touchpad-core" }
 touchpad-desktop = { path = "../../crates/touchpad-desktop" }
 touchpad-linux = { path = "../../crates/touchpad-linux" }
+touchpad-windows = { path = "../../crates/touchpad-windows" }
 touchpad-trace = { path = "../../crates/touchpad-trace" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

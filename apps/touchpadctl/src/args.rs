@@ -38,6 +38,9 @@ pub enum Command {
         /// Whether to run the real `--emit` pattern (explicit opt-in).
         emit: bool,
     },
+    /// `windows-probe` — read-only Windows backend capability report. On
+    /// non-Windows hosts it reports the platform limitation honestly.
+    WindowsProbe,
     /// `config-check FILE` — strict offline M16 runtime configuration
     /// validation/migration. Reads no device and starts no service.
     ConfigCheck {
@@ -364,6 +367,7 @@ fn static_command_name(name: &str) -> Option<&'static str> {
         "record" => Some("record"),
         "replay" => Some("replay"),
         "output-probe" => Some("output-probe"),
+        "windows-probe" => Some("windows-probe"),
         "config-check" => Some("config-check"),
         "service-preflight" => Some("service-preflight"),
         "feel-default" => Some("feel-default"),
@@ -516,6 +520,11 @@ where
             Ok(Command::OutputProbe {
                 emit: emit_count == 1,
             })
+        }
+        "windows-probe" => {
+            check_arity("windows-probe", 0, &positional)?;
+            reject_non_record_flags("windows-probe", &flags)?;
+            Ok(Command::WindowsProbe)
         }
         "config-check" => {
             check_arity("config-check", 1, &positional)?;
@@ -959,6 +968,7 @@ USAGE:
   touchpadctl record DEVICE OUTPUT [--grab]
   touchpadctl replay INPUT
   touchpadctl output-probe [--emit]
+  touchpadctl windows-probe
   touchpadctl config-check FILE
   touchpadctl service-preflight FILE
   touchpadctl feel-default OUTPUT
@@ -1007,6 +1017,12 @@ COMMANDS:
                        countdown (Ctrl-C to cancel). The backend is
                        EXPERIMENTAL/UNQUALIFIED until a reviewer measures a
                        real --emit run.
+  windows-probe        Read-only Windows backend report. Enumerates Precision
+                       Touchpad HID top-level collections when running on
+                       Windows, reports Raw Input / SendInput / native
+                       synthetic-touchpad API availability, and explicitly
+                       reports whether full physical-device takeover is
+                       possible without a filter driver. Never emits input.
   config-check FILE    Strictly parse/validate an M16 runtime JSON file and
                        explicitly migrate v1 in memory. No device/output or
                        service side effect.
@@ -1396,6 +1412,24 @@ mod tests {
         // The help documents the non-emitting default and the countdown.
         assert!(HELP_TEXT.contains("NON-EMITTING by default"));
         assert!(HELP_TEXT.contains("3-second"));
+    }
+
+    #[test]
+    fn windows_probe_is_read_only_and_takes_no_flags() {
+        assert_eq!(parse(&["windows-probe"]).unwrap(), Command::WindowsProbe);
+        assert!(matches!(
+            parse(&["windows-probe", "--emit"]),
+            Err(UsageError::UnknownFlag(_))
+        ));
+        assert!(matches!(
+            parse(&["windows-probe", "extra"]),
+            Err(UsageError::WrongArity {
+                command: "windows-probe",
+                ..
+            })
+        ));
+        assert!(HELP_TEXT.contains("windows-probe"));
+        assert!(HELP_TEXT.contains("filter driver"));
     }
 
     // ------------------------------------------------------------------

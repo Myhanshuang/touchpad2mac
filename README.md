@@ -1,6 +1,6 @@
 # touchpad2mac
 
-`touchpad2mac` is an experimental userspace touchpad runtime for Linux, focused on macOS-inspired pointer feel, gesture semantics, and three-finger drag on KDE Plasma Wayland.
+`touchpad2mac` is an experimental cross-platform touchpad runtime. Linux is the qualified development path for full evdev takeover; Windows now has a native platform boundary for Precision Touchpad discovery, capability probing, and semantic mouse/button/wheel output, with full physical-device takeover intentionally gated on a filter driver.
 
 The project reads Linux evdev multitouch input, decodes Type-B contact frames, resolves competing interactions in a platform-independent arbiter, and emits desktop input through the XDG RemoteDesktop portal + libei. Discrete KDE actions are routed through Plasma's KGlobalAccel interface.
 
@@ -9,6 +9,8 @@ The project reads Linux evdev multitouch input, decodes Type-B contact frames, r
 ## Highlights
 
 - Automatic discovery of compatible `/dev/input/event*` touchpads.
+- Windows Precision Touchpad discovery through the Raw Input HID device list.
+- Windows compatibility output through `SendInput`, plus runtime probing for the newer native synthetic Precision Touchpad API.
 - Libinput-inspired disable-while-typing (DWT) using read-only monitoring of paired internal keyboards; no keyboard grab or key logging.
 - One-finger pointer motion with configurable dead zone, tracking speed, and gain curve.
 - Tap, double tap, tap-and-drag, physical click, and secondary click handling.
@@ -24,13 +26,21 @@ The project reads Linux evdev multitouch input, decodes Type-B contact frames, r
 
 ## Platform
 
-The current real-output path targets:
+The current full-takeover path targets:
 
 - Linux
 - KDE Plasma 6 on Wayland
 - XDG Desktop Portal RemoteDesktop support
 - runtime-available `libei.so.1`
 - a readable Linux evdev touchpad device
+
+Windows support currently provides a safe **user-mode overlay/probe layer**:
+
+- Precision Touchpads are identified by the HID Digitizers/Touch Pad top-level collection (`usage page 0x0D`, `usage 0x05`).
+- `touchpadctl windows-probe` enumerates visible PTP devices and reports Windows API availability without emitting input.
+- `touchpad-windows` contains a tested semantic output sink for relative pointer motion, buttons, and Win32 wheel data using `SendInput` on Windows.
+- New Windows 11 synthetic touchpad exports are detected dynamically, so older Windows builds fail closed rather than failing process startup.
+- **Full takeover is not claimed.** Windows Raw Input can observe HID data but does not provide a user-mode equivalent of `EVIOCGRAB` for Precision Touchpads. A signed HID/mouse-class filter driver is required before the physical touchpad can be suppressed without duplicate native input.
 
 The workspace declares Rust **1.87** as its MSRV.
 
@@ -46,6 +56,12 @@ The CLI binary is:
 
 ```bash
 target/release/touchpadctl
+```
+
+On Windows, the first bring-up command is:
+
+```powershell
+target\release\touchpadctl.exe windows-probe
 ```
 
 For development, the standard quality gates are:
@@ -199,6 +215,22 @@ typed output decisions
     └── KDE KGlobalAccel ───────────► desktop actions
 ```
 
+Windows currently uses a separate platform edge rather than pretending the
+Linux evdev model applies unchanged:
+
+```text
+Windows Raw Input / HID device enumeration
+    │
+    ├── Precision Touchpad identity probe (0x0D / 0x05)
+    │
+    └── future contact-report decoder / filter-driver takeover boundary
+
+touchpad-core semantic OutputEvent
+    │
+    ├── SendInput compatibility output (implemented)
+    └── native synthetic PTP API (runtime capability probe implemented)
+```
+
 Workspace layout:
 
 | Path | Purpose |
@@ -206,6 +238,7 @@ Workspace layout:
 | `crates/touchpad-core` | Platform-independent interaction policy, gesture recognition, settings, and output contracts |
 | `crates/touchpad-trace` | Versioned JSONL trace format and replay boundary |
 | `crates/touchpad-linux` | Linux evdev enumeration, Type-B decoding, recording, grabbing, and runtime boundary |
+| `crates/touchpad-windows` | Windows Precision Touchpad discovery/capability boundary and tested Win32 semantic output |
 | `crates/touchpad-desktop` | Portal/libei output and KDE desktop-action integration |
 | `apps/touchpadctl` | Command-line frontend and bounded live takeover orchestration |
 

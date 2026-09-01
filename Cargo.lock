@@ -690,6 +690,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "touchpad-windows"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "touchpad-core",
+]
+
+[[package]]
 name = "touchpad-trace"
 version = "0.1.0"
 dependencies = [
@@ -710,6 +718,7 @@ dependencies = [
  "touchpad-desktop",
  "touchpad-linux",
  "touchpad-trace",
+ "touchpad-windows",
 ]
 
 [[package]]

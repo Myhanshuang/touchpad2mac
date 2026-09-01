@@ -1,0 +1,11 @@
+[package]
+name = "touchpad-windows"
+description = "Windows platform boundary for touchpad2mac: Precision Touchpad discovery, user-mode capability probing, and testable Win32 semantic output."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+touchpad-core = { path = "../touchpad-core" }
+thiserror = { workspace = true }

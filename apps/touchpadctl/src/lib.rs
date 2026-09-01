@@ -89,6 +89,17 @@ pub fn run_command(env: &mut CommandEnv<'_>, command: &Command) -> Result<(), Co
         } => cmd::record::run(env, device, output, *grab),
         Command::Replay { input } => cmd::replay::run(env, input),
         Command::OutputProbe { emit } => cmd::output_probe::run(env, *emit),
+        Command::WindowsProbe => {
+            writeln!(
+                env.out,
+                "{}",
+                touchpad_windows::render_windows_support(&touchpad_windows::probe_windows_support())
+            )
+            .map_err(|error| {
+                CommandFailure::Unexpected(format!("could not write output: {error}"))
+            })?;
+            Ok(())
+        }
         Command::ConfigCheck { input } => cmd::config::run_check(env, input),
         Command::ServicePreflight { input } => cmd::config::run_preflight(env, input),
         Command::FeelDefault { output } => cmd::feel::run_default(env, output),

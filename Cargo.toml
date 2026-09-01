@@ -7,6 +7,7 @@ members = [
     "crates/touchpad-core",
     "crates/touchpad-trace",
     "crates/touchpad-linux",
+    "crates/touchpad-windows",
     "crates/touchpad-desktop",
     "apps/touchpadctl",
 ]
