@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::thread;
 use std::time::Duration;
 
-use touchpad_core::ContactFrame;
+use touchpad_core::{ContactFrame, ContactState};
 use touchpad_linux::sink::FrameSink;
 use touchpad_linux::sys::ffi::LinuxSys;
 use touchpad_linux::{EvdevRuntime, ProbeVerdict};
@@ -46,5 +46,11 @@ fn kernel_uinput_to_evdev_runtime_to_type_b_decoder() {
 
     let frames = &runtime.sink_mut().expect("sink remains attached").0;
     assert!(frames.iter().any(|frame| frame.contacts.len() == 3));
-    assert!(frames.iter().any(|frame| frame.contacts.is_empty()));
+    assert!(frames.iter().any(|frame| {
+        frame.contacts.len() == 3
+            && frame
+                .contacts
+                .iter()
+                .all(|contact| contact.state == ContactState::Ended)
+    }));
 }

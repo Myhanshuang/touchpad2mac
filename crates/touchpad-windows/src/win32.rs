@@ -9,7 +9,7 @@
 
 use std::ffi::{c_void, CString};
 use std::mem::size_of;
-use std::ptr::{null, null_mut};
+use std::ptr::null_mut;
 
 use touchpad_core::MouseButton;
 
@@ -285,6 +285,11 @@ impl WindowsOutputApi for Win32OutputApi {
                 return Err(WindowsError::Unsupported(format!(
                     "mouse button Other({code}); only XBUTTON1/2 are mapped"
                 )))
+            }
+            _ => {
+                return Err(WindowsError::Unsupported(
+                    "unknown mouse button variant".to_string(),
+                ))
             }
         };
         send_mouse(MouseInput {

@@ -7,8 +7,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-touchpad-core = { path = "../touchpad-core" }
-touchpad-trace = { path = "../touchpad-trace" }
+touchpad-core = { version = "0.1.0", path = "../touchpad-core" }
+touchpad-trace = { version = "0.1.0", path = "../touchpad-trace" }
 thiserror = { workspace = true }
 
 # The only system dependency: C `input_*` struct layouts and the raw

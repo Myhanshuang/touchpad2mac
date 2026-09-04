@@ -7,7 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-touchpad-core = { path = "../touchpad-core" }
+touchpad-core = { version = "0.1.0", path = "../touchpad-core" }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

@@ -8,8 +8,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
-touchpad-core = { path = "../touchpad-core" }
-touchpad-linux = { path = "../touchpad-linux" }
+touchpad-core = { version = "0.1.0", path = "../touchpad-core" }
+touchpad-linux = { version = "0.1.0", path = "../touchpad-linux" }
 thiserror = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]

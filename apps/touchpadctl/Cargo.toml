@@ -7,11 +7,11 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-touchpad-core = { path = "../../crates/touchpad-core" }
-touchpad-desktop = { path = "../../crates/touchpad-desktop" }
-touchpad-linux = { path = "../../crates/touchpad-linux" }
-touchpad-windows = { path = "../../crates/touchpad-windows" }
-touchpad-trace = { path = "../../crates/touchpad-trace" }
+touchpad-core = { version = "0.1.0", path = "../../crates/touchpad-core" }
+touchpad-desktop = { version = "0.1.0", path = "../../crates/touchpad-desktop" }
+touchpad-linux = { version = "0.1.0", path = "../../crates/touchpad-linux" }
+touchpad-windows = { version = "0.1.0", path = "../../crates/touchpad-windows" }
+touchpad-trace = { version = "0.1.0", path = "../../crates/touchpad-trace" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 
