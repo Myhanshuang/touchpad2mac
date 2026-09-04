@@ -102,6 +102,10 @@ pub fn run_command(env: &mut CommandEnv<'_>, command: &Command) -> Result<(), Co
         }
         Command::ConfigCheck { input } => cmd::config::run_check(env, input),
         Command::ServicePreflight { input } => cmd::config::run_preflight(env, input),
+        Command::Doctor { settings } => cmd::operations::run_doctor(env, settings),
+        Command::Diagnostics { output } => cmd::operations::run_diagnostics(env, output),
+        Command::Qualify { output } => cmd::operations::run_qualify(env, output),
+        Command::ServiceRun { settings } => cmd::takeover::run_service(env, settings),
         Command::FeelDefault { output } => cmd::feel::run_default(env, output),
         Command::FeelCheck { input } => cmd::feel::run_check(env, input),
         Command::FeelShow { input } => cmd::feel::run_show(env, input),
@@ -158,6 +162,9 @@ pub fn run_command(env: &mut CommandEnv<'_>, command: &Command) -> Result<(), Co
 pub fn command_needs_termination_handler(command: &Command) -> bool {
     matches!(
         command,
-        Command::Record { .. } | Command::OutputProbe { emit: true } | Command::Takeover { .. }
+        Command::Record { .. }
+            | Command::OutputProbe { emit: true }
+            | Command::Takeover { .. }
+            | Command::ServiceRun { .. }
     )
 }

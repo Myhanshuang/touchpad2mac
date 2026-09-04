@@ -516,7 +516,7 @@ pub(crate) fn decide_verdict(
         descriptor.slot_count = slot_count;
         descriptor.supports_type_b_mt = true;
         descriptor.has_physical_buttons = capabilities.has_physical_buttons();
-        descriptor.profile = DeviceProfile::for_hardware(id.vendor, id.product);
+        descriptor.profile = DeviceProfile::for_hardware_named(name, id.vendor, id.product);
         evidence.push(format!(
             "accepted: Type-B multitouch pointer device with {} slots",
             slot_count.unwrap_or_default()

@@ -1,6 +1,6 @@
 [package]
 name = "touchpadctl"
-description = "Touchpad Runtime Phase 1 CLI: devices, inspect, record, replay (M5)."
+description = "touchpad2mac CLI and production runtime: diagnostics, configuration, trace/replay, qualification, and Linux touchpad service orchestration."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

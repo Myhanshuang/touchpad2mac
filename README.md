@@ -58,6 +58,20 @@ The CLI binary is:
 target/release/touchpadctl
 ```
 
+For normal Linux installation, use the packaged user-service layout instead
+of running a bounded takeover command manually:
+
+```bash
+./packaging/install.sh
+touchpadctl doctor ~/.config/touchpad2mac/settings.json
+systemctl --user enable --now touchpad2mac.service
+```
+
+Pass `--enable` to `packaging/install.sh` to enable/start the service during
+installation. The installer keeps runtime files user-scoped; only the udev
+`uaccess` rule requires administrator privileges. It never makes input devices
+world-readable/world-writable.
+
 On Windows, the first bring-up command is:
 
 ```powershell
@@ -148,6 +162,38 @@ target/release/touchpadctl takeover trace-m19.jsonl \
 ```
 
 Use **Ctrl-C** or **SIGTERM** for normal shutdown so the runtime can execute its ordered release, ungrab, and session cleanup path.
+
+### Production service
+
+Installed service mode runs:
+
+```bash
+touchpadctl service-run ~/.config/touchpad2mac/settings.json
+```
+
+`service-run` reuses the same exclusive touchpad ownership, arbiter,
+portal/libei output, DWT, settings watcher and ordered cleanup as `takeover`,
+but it has no artificial 300-second development deadline/countdown and does
+not continuously record an unbounded raw touch trace. `takeover` remains the
+explicit reproduction/qualification path.
+
+Before enabling the service on a new machine, run:
+
+```bash
+touchpadctl doctor ~/.config/touchpad2mac/settings.json
+```
+
+For support or new hardware qualification:
+
+```bash
+touchpadctl diagnostics diagnostics.json
+touchpadctl qualify qualification.json
+```
+
+The static diagnostics bundle contains device/session metadata and applied
+quirks only. It intentionally contains no keyboard key codes and no touch
+trace. Touch traces remain explicit, separate artifacts created only by the
+record/takeover tools.
 
 ## Configuration
 
@@ -240,7 +286,13 @@ Workspace layout:
 | `crates/touchpad-linux` | Linux evdev enumeration, Type-B decoding, recording, grabbing, and runtime boundary |
 | `crates/touchpad-windows` | Windows Precision Touchpad discovery/capability boundary and tested Win32 semantic output |
 | `crates/touchpad-desktop` | Portal/libei output and KDE desktop-action integration |
+| `crates/touchpad-testkit` | Optional Linux `/dev/uinput` software-in-the-loop fixtures that traverse the real kernel evdev path |
 | `apps/touchpadctl` | Command-line frontend and bounded live takeover orchestration |
+
+Hardware-specific corrections live in the strict, versioned
+`quirks/builtin.json` database rather than product-name branches spread across
+the runtime. Unknown hardware uses the generic profile; proposed quirk entries
+are schema-validated in tests.
 
 ## CLI overview
 
@@ -254,6 +306,10 @@ replay
 output-probe
 config-check
 service-preflight
+doctor
+diagnostics
+qualify
+service-run
 feel-default / feel-check / feel-show / feel-set / feel-gui
 settings-default / settings-macos / settings-check / settings-show
 settings-set / settings-patch / settings-gui
@@ -283,8 +339,8 @@ The runtime performs validation before device/output side effects where possible
 
 - Live profiles are still **live-unqualified** and require user-run hardware/session acceptance.
 - The production output path currently targets KDE Plasma Wayland; X11 and generic desktop support are not production paths.
-- The project is not a complete replacement for libinput and does not yet carry libinput's hardware quirk database or platform maturity.
-- Keyboard discovery / full disable-while-typing integration is incomplete.
+- The project is not a complete replacement for libinput and its hardware quirk database is still very small compared with libinput's platform maturity.
+- DWT discovery/timing is implemented, but broad laptop keyboard/touchpad pairing still needs community hardware qualification.
 - Some semantic gesture targets remain unsupported by the real KDE transport.
 - Native continuous gesture passthrough is not currently a production output path.
 - Hardware pressure, haptics, and Force Click are outside the current production scope.
@@ -293,15 +349,21 @@ The runtime performs validation before device/output side effects where possible
 
 - [Run guide](doc/RUN_GUIDE.md) — practical build, setup, takeover, and tuning workflow.
 - [User manual](doc/USER_MANUAL.md) — settings, gestures, tuning behavior, and recovery guidance.
+- [Architecture](doc/ARCHITECTURE.md) — typed platform boundaries, recognizer ownership, output lifecycle, and production/runtime split.
+- [Hardware support](doc/HARDWARE.md) — diagnostics, qualification tiers, and evidence-driven quirk contributions.
 - [Historical documents](doc/old/) — milestone tasks, design records, acceptance procedures, and review reports retained for traceability.
 - [Third-party notes](THIRD_PARTY.md) — external components and related integration notes.
+- [Packaging](packaging/README.md) — installation layout, systemd service, and udev access rule.
+- [Contributing](CONTRIBUTING.md) — architecture invariants, tests, hardware evidence, and PR expectations.
+- [Security](SECURITY.md) — private vulnerability reporting and input/privacy boundaries.
 
 Historical documents describe the state of the project at specific milestones and may intentionally contain superseded behavior or paths. Use this README and the two current documents under `doc/` as the primary reference.
 
 ## Project status
 
-The current development line is centered on `m19-live-v1`: configurable macOS-inspired gesture behavior, stable three-finger drag, safe settings hot reload, automatic touchpad discovery, and KDE Plasma integration. Earlier `m10-*` through `m18-*` profiles remain in the codebase mainly as compatibility and regression boundaries.
+The current production policy is derived from `m19-live-v1`: configurable macOS-inspired gesture behavior, stable three-finger drag, safe settings hot reload, automatic touchpad discovery, DWT, KDE Plasma integration, systemd service packaging, data-driven quirks and system-level uinput tests. Earlier `m10-*` through `m18-*` profiles remain in the codebase mainly as compatibility and regression boundaries; end users should use `service-run` rather than choosing milestone profiles directly.
 
 ## License
 
-The Rust workspace is declared as dual-licensed under **MIT OR Apache-2.0**. Dedicated license text files have not yet been added to the repository.
+The project is dual-licensed under **MIT OR Apache-2.0**. See
+`LICENSE-MIT` and `LICENSE-APACHE`.

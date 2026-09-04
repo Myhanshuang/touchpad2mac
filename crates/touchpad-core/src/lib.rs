@@ -43,6 +43,7 @@ pub mod m19;
 pub mod output;
 pub mod production;
 pub mod profile;
+pub mod quirks;
 pub mod robustness;
 pub mod scroll_fidelity;
 pub mod settings;

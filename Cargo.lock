@@ -690,6 +690,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "touchpad-testkit"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "thiserror",
+ "touchpad-core",
+ "touchpad-linux",
+]
+
+[[package]]
 name = "touchpad-windows"
 version = "0.1.0"
 dependencies = [

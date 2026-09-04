@@ -9,6 +9,7 @@ members = [
     "crates/touchpad-linux",
     "crates/touchpad-windows",
     "crates/touchpad-desktop",
+    "crates/touchpad-testkit",
     "apps/touchpadctl",
 ]
 

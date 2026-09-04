@@ -635,35 +635,80 @@ pub(crate) fn run<'a>(
     profile_name: &str,
     inputs: ProfileInputs<'_>,
 ) -> Result<(), CommandFailure> {
-    let device = device.into();
+    run_inner(
+        env,
+        device.into(),
+        Some(trace),
+        Some(max_duration_seconds),
+        profile_name,
+        inputs,
+        true,
+    )
+}
+
+/// Runs the packaged persistent Linux service. This path deliberately reuses
+/// the same device/output/arbiter/cleanup implementation as `takeover`, but
+/// removes the developer-only five-minute deadline, countdown and mandatory
+/// raw trace.
+pub(crate) fn run_service(env: &mut CommandEnv<'_>, settings: &Path) -> Result<(), CommandFailure> {
+    run_inner(
+        env,
+        None,
+        None,
+        None,
+        M19Profile::NAME,
+        ProfileInputs {
+            feel_config_path: None,
+            settings_path: Some(settings),
+            watch_settings: true,
+        },
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_inner(
+    env: &mut CommandEnv<'_>,
+    device: Option<&Path>,
+    trace: Option<&Path>,
+    max_duration_seconds: Option<u32>,
+    profile_name: &str,
+    inputs: ProfileInputs<'_>,
+    interactive: bool,
+) -> Result<(), CommandFailure> {
     // Mandatory warnings (the CLI contract documents them; the command
     // repeats them visibly). No resources are held yet, so a status-write
     // failure here is a plain internal error.
     if let Err(error) = writeln!(
         env.err,
-        "WARNING: takeover requested: the physical touchpad will be grabbed \
+        "{}: the physical touchpad will be grabbed \
          EXCLUSIVELY (EVIOCGRAB), the runtime will EMIT REAL DESKTOP INPUT \
          (pointer motion, clicks, scroll) through a portal authorization \
-         prompt, and the raw input will be recorded. This is an \
-         EXPERIMENTAL, live-unqualified slice; keep an EXTERNAL KEYBOARD AND \
-         MOUSE connected and keep a second terminal ready to run \
-         `kill -TERM <pid>`."
+         prompt. Keep an EXTERNAL KEYBOARD AND MOUSE available while \
+         qualifying new hardware.",
+        if interactive {
+            "WARNING: takeover requested"
+        } else {
+            "service runtime starting"
+        }
     ) {
         return Err(CommandFailure::Unexpected(format!(
             "could not write status: {error}"
         )));
     }
-    if let Err(error) = writeln!(
-        env.err,
-        "WARNING: --output-qualified is an OPERATOR ATTESTATION that the M6 \
-         output calibration (doc/old/acceptance/M6_ACCEPTANCE.md §3) was performed. It is \
-         NOT measurement evidence; the backend stays experimental/unqualified \
-         and M10 stays live-unqualified until the user records the \
-         10/60/300-second acceptance results (doc/old/acceptance/M10_ACCEPTANCE.md)."
-    ) {
-        return Err(CommandFailure::Unexpected(format!(
-            "could not write status: {error}"
-        )));
+    if interactive {
+        if let Err(error) = writeln!(
+            env.err,
+            "WARNING: --output-qualified is an OPERATOR ATTESTATION that the M6 \
+             output calibration (doc/old/acceptance/M6_ACCEPTANCE.md §3) was performed. It is \
+             NOT measurement evidence; the backend stays experimental/unqualified \
+             and M10 stays live-unqualified until the user records the \
+             10/60/300-second acceptance results (doc/old/acceptance/M10_ACCEPTANCE.md)."
+        ) {
+            return Err(CommandFailure::Unexpected(format!(
+                "could not write status: {error}"
+            )));
+        }
     }
 
     // Select the profile and emit its banner BEFORE any device/output/
@@ -870,41 +915,40 @@ pub(crate) fn run<'a>(
         );
     }
 
-    // Step 5: the mandatory trace recorder, built from the exact validated
-    // descriptor, header flushed (proving the output is writable) before
-    // attach — attach happens before any raw event can reach the decoder.
-    let descriptor = guard
-        .runtime
-        .as_ref()
-        .expect("runtime present")
-        .descriptor()
-        .cloned()
-        .expect("a freshly opened runtime always exposes its descriptor");
-    let recorder = match create_recorder(env, trace, &TraceHeader::new(descriptor)) {
-        Ok(recorder) => recorder,
-        Err(error) => return finalize(env, &mut guard, StopReason::RecorderPreflight(error)),
-    };
-    guard.unattached_recorder = Some(recorder);
-    let flush_failed = {
-        let recorder = guard
-            .unattached_recorder
+    // Developer takeover keeps its mandatory raw trace. Persistent service
+    // mode deliberately does not record an unbounded touch stream by default;
+    // users can run the explicit `record`/`takeover` tools when reproduction
+    // evidence is required.
+    if let Some(trace) = trace {
+        let descriptor = guard
+            .runtime
+            .as_ref()
+            .expect("runtime present")
+            .descriptor()
+            .cloned()
+            .expect("a freshly opened runtime always exposes its descriptor");
+        let recorder = match create_recorder(env, trace, &TraceHeader::new(descriptor)) {
+            Ok(recorder) => recorder,
+            Err(error) => return finalize(env, &mut guard, StopReason::RecorderPreflight(error)),
+        };
+        guard.unattached_recorder = Some(recorder);
+        let flush_failed = {
+            let recorder = guard
+                .unattached_recorder
+                .as_mut()
+                .expect("recorder present");
+            recorder.flush()
+        };
+        if let Err(error) = flush_failed {
+            return finalize(env, &mut guard, StopReason::RecorderPreflight(error));
+        }
+        let recorder = guard.unattached_recorder.take().expect("recorder present");
+        guard
+            .runtime
             .as_mut()
-            .expect("recorder present");
-        recorder.flush()
-    };
-    if let Err(error) = flush_failed {
-        // The header did not reach the file: the output is not writable.
-        // Fail with the recorder error (exit 7); the ordered finalize
-        // releases the prepared output session, finalizes this recorder, and
-        // closes the device with zero grabs.
-        return finalize(env, &mut guard, StopReason::RecorderPreflight(error));
+            .expect("runtime present")
+            .set_recorder(recorder);
     }
-    let recorder = guard.unattached_recorder.take().expect("recorder present");
-    guard
-        .runtime
-        .as_mut()
-        .expect("runtime present")
-        .set_recorder(recorder);
 
     // Step 6: print the resolved plan and run the visible cancellable
     // countdown (≥ 3 s; the sleeper is injectable so tests never sleep).
@@ -915,7 +959,11 @@ pub(crate) fn run<'a>(
         .fd()
         .expect("the device is open");
     status!(env, guard, "device: {}", resolved_device.display());
-    status!(env, guard, "trace: {}", trace.display());
+    if let Some(trace) = trace {
+        status!(env, guard, "trace: {}", trace.display());
+    } else {
+        status!(env, guard, "trace: disabled in persistent service mode");
+    }
     status!(
         env,
         guard,
@@ -929,23 +977,33 @@ pub(crate) fn run<'a>(
         "negotiated capabilities: {}",
         capabilities.summary()
     );
-    status!(env, guard, "maximum duration: {max_duration_seconds} seconds (bounded; the grab may exceed it by at most the {POLL_QUANTUM:?} polling quantum)");
+    if let Some(max_duration_seconds) = max_duration_seconds {
+        status!(env, guard, "maximum duration: {max_duration_seconds} seconds (bounded; the grab may exceed it by at most the {POLL_QUANTUM:?} polling quantum)");
+    } else {
+        status!(
+            env,
+            guard,
+            "maximum duration: persistent until SIGINT/SIGTERM or runtime fault"
+        );
+    }
     status!(
         env,
         guard,
         "cleanup order on any stop: output release → recorder finalize → ungrab → close"
     );
     status!(env, guard, "escape routes: external keyboard/mouse; in a second terminal run `kill -TERM <pid>` (pid {})", std::process::id());
-    for remaining in (1..=COUNTDOWN_SECONDS).rev() {
-        if cancelled() {
-            return finalize(env, &mut guard, StopReason::CancelledBeforeGrab);
+    if interactive {
+        for remaining in (1..=COUNTDOWN_SECONDS).rev() {
+            if cancelled() {
+                return finalize(env, &mut guard, StopReason::CancelledBeforeGrab);
+            }
+            status!(
+                env,
+                guard,
+                "takeover in {remaining} second(s)... (Ctrl-C to cancel)"
+            );
+            (env.takeover.sleeper)(Duration::from_secs(1));
         }
-        status!(
-            env,
-            guard,
-            "takeover in {remaining} second(s)... (Ctrl-C to cancel)"
-        );
-        (env.takeover.sleeper)(Duration::from_secs(1));
     }
     if cancelled() {
         return finalize(env, &mut guard, StopReason::CancelledBeforeGrab);
@@ -983,15 +1041,17 @@ fn run_loop(
     env: &mut CommandEnv<'_>,
     guard: &mut TakeoverCleanup,
     fd: Fd,
-    max_duration_seconds: u32,
+    max_duration_seconds: Option<u32>,
     mut settings_watcher: Option<&mut crate::cmd::live_settings::SettingsWatcher>,
     real_desktop_plan: Option<&RealDesktopPlan>,
 ) -> StopReason {
     let start = (env.takeover.clock)();
     let mut tick_clock = InputDomainTickClock::default();
-    let deadline = start
-        .checked_add(Duration::from_secs(u64::from(max_duration_seconds)))
-        .unwrap_or(Monotonic::from_nanos(u64::MAX));
+    let deadline = max_duration_seconds.map(|seconds| {
+        start
+            .checked_add(Duration::from_secs(u64::from(seconds)))
+            .unwrap_or(Monotonic::from_nanos(u64::MAX))
+    });
     let cancelled =
         || env.stop_flag.load(Ordering::Relaxed) || touchpad_linux::termination_requested();
     loop {
@@ -999,7 +1059,7 @@ fn run_loop(
             return StopReason::Signal;
         }
         let before_wait = (env.takeover.clock)();
-        if before_wait >= deadline {
+        if deadline.is_some_and(|deadline| before_wait >= deadline) {
             return StopReason::Deadline;
         }
         // Inspect the bridge fault before the step (defensive) and after

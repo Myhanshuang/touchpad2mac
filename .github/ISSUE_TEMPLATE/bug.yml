@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible software bug
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Please run `touchpadctl diagnostics diagnostics.json` and attach it when relevant. Do not attach sensitive keyboard data."
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: touchpad2mac version/commit
+    validations:
+      required: true

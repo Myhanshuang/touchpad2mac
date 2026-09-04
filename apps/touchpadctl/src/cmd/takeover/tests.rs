@@ -483,6 +483,54 @@ fn auto_discovery_selects_the_only_touchpad_candidate() {
 }
 
 #[test]
+fn service_run_reuses_takeover_cleanup_without_trace_countdown_or_deadline() {
+    let mut h = Harness::happy();
+    h.sys.set_dir_entries(vec![device_path()]);
+    h.with_device(mock_touchpad());
+    // The persistent service has no deadline. Drive one real loop iteration
+    // and terminate through the normal EOF/stream-failure cleanup path.
+    h.with_readiness(vec![true]);
+
+    let settings_path = std::env::temp_dir().join(format!(
+        "touchpad2mac-service-test-{}.json",
+        std::process::id()
+    ));
+    std::fs::write(
+        &settings_path,
+        serde_json::to_vec_pretty(&touchpad_core::UserSettings::default()).unwrap(),
+    )
+    .unwrap();
+
+    let result = {
+        let mut env = h.env();
+        run_service(&mut env, &settings_path)
+    };
+    let _ = std::fs::remove_file(&settings_path);
+
+    assert!(
+        matches!(result, Err(CommandFailure::Stream(_))),
+        "{result:?}"
+    );
+    assert_eq!(*h.sleeper_calls.borrow(), 0, "service must not countdown");
+    assert!(
+        h.timeline
+            .borrow()
+            .iter()
+            .all(|entry| !entry.starts_with("recorder:")),
+        "persistent service must not create an unbounded raw trace: {:?}",
+        h.timeline.borrow()
+    );
+    let timeline = h.timeline.borrow();
+    let release = pos(&timeline, "output:release_all");
+    let ungrab = pos(&timeline, ", false)");
+    let close = timeline
+        .iter()
+        .rposition(|entry| entry.starts_with("close("))
+        .expect("runtime device close");
+    assert!(release < ungrab && ungrab < close, "{timeline:?}");
+}
+
+#[test]
 fn auto_discovery_refuses_multiple_candidates_and_lists_device_flags() {
     let first = PathBuf::from("/dev/input/event3");
     let second = PathBuf::from("/dev/input/event15");

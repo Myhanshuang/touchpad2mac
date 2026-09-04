@@ -1,0 +1,29 @@
+[Unit]
+Description=touchpad2mac userspace touchpad runtime
+Documentation=https://github.com/Myhanshuang/touchpad2mac
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/touchpadctl service-run %h/.config/touchpad2mac/settings.json
+Restart=on-failure
+RestartSec=2
+# Usage/configuration, missing desktop prerequisites, explicit authorization
+# denial, no candidate device and internal setup errors need operator action;
+# restarting them would only loop or repeatedly show a portal prompt. Stream
+# faults (e.g. transient device loss) remain restartable.
+RestartPreventExitStatus=1 2 3 4 9
+# The CLI's controlled SIGINT/SIGTERM exit is 8 after successful ordered
+# cleanup. Treat that as a clean service termination.
+SuccessExitStatus=8
+TimeoutStopSec=5
+KillSignal=SIGTERM
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/touchpad2mac %h/.config/touchpad2mac
+
+[Install]
+WantedBy=default.target

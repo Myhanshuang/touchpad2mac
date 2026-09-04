@@ -1,0 +1,21 @@
+name: Hardware support
+description: Qualify a new touchpad/laptop or report hardware-specific behavior
+title: "[hardware] "
+labels: ["hardware"]
+body:
+  - type: markdown
+    attributes:
+      value: "Attach outputs from `touchpadctl diagnostics diagnostics.json` and `touchpadctl qualify qualification.json`. Complete the qualification statuses on the real machine."
+  - type: input
+    id: machine
+    attributes:
+      label: Machine model
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Qualification notes
+      description: List failed or unusual cases and whether the issue reproduces after suspend/resume.
+    validations:
+      required: true

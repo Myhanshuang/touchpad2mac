@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "name": "cirq1080-0488-1054",
+      "match": {
+        "vendor_id": 1160,
+        "product_id": 4180,
+        "name_contains": "CIRQ1080"
+      },
+      "quirks": ["Buttonpad"],
+      "axis_resolutions": []
+    }
+  ]
+}

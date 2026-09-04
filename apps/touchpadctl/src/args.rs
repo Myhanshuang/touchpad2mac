@@ -53,6 +53,27 @@ pub enum Command {
         /// JSON configuration file.
         input: PathBuf,
     },
+    /// `doctor SETTINGS` — read-only production readiness diagnostics.
+    Doctor {
+        /// Unified user settings file to validate.
+        settings: PathBuf,
+    },
+    /// `diagnostics OUTPUT` — write a privacy-preserving JSON support bundle.
+    Diagnostics {
+        /// Destination JSON file.
+        output: PathBuf,
+    },
+    /// `qualify OUTPUT` — write a hardware qualification checklist/report.
+    Qualify {
+        /// Destination JSON file.
+        output: PathBuf,
+    },
+    /// `service-run SETTINGS` — persistent production runtime used by the
+    /// packaged systemd user service.
+    ServiceRun {
+        /// Unified settings file, watched for safe neutral-boundary reloads.
+        settings: PathBuf,
+    },
     /// Writes the built-in M17 default feel overlay as pretty JSON.
     FeelDefault {
         /// Destination JSON file.
@@ -370,6 +391,10 @@ fn static_command_name(name: &str) -> Option<&'static str> {
         "windows-probe" => Some("windows-probe"),
         "config-check" => Some("config-check"),
         "service-preflight" => Some("service-preflight"),
+        "doctor" => Some("doctor"),
+        "diagnostics" => Some("diagnostics"),
+        "qualify" => Some("qualify"),
+        "service-run" => Some("service-run"),
         "feel-default" => Some("feel-default"),
         "feel-check" => Some("feel-check"),
         "feel-show" => Some("feel-show"),
@@ -538,6 +563,34 @@ where
             reject_non_record_flags("service-preflight", &flags)?;
             Ok(Command::ServicePreflight {
                 input: PathBuf::from(positional[0]),
+            })
+        }
+        "doctor" => {
+            check_arity("doctor", 1, &positional)?;
+            reject_non_record_flags("doctor", &flags)?;
+            Ok(Command::Doctor {
+                settings: PathBuf::from(positional[0]),
+            })
+        }
+        "diagnostics" => {
+            check_arity("diagnostics", 1, &positional)?;
+            reject_non_record_flags("diagnostics", &flags)?;
+            Ok(Command::Diagnostics {
+                output: PathBuf::from(positional[0]),
+            })
+        }
+        "qualify" => {
+            check_arity("qualify", 1, &positional)?;
+            reject_non_record_flags("qualify", &flags)?;
+            Ok(Command::Qualify {
+                output: PathBuf::from(positional[0]),
+            })
+        }
+        "service-run" => {
+            check_arity("service-run", 1, &positional)?;
+            reject_non_record_flags("service-run", &flags)?;
+            Ok(Command::ServiceRun {
+                settings: PathBuf::from(positional[0]),
             })
         }
         "feel-default" => {
@@ -971,6 +1024,10 @@ USAGE:
   touchpadctl windows-probe
   touchpadctl config-check FILE
   touchpadctl service-preflight FILE
+  touchpadctl doctor SETTINGS
+  touchpadctl diagnostics OUTPUT.json
+  touchpadctl qualify OUTPUT.json
+  touchpadctl service-run SETTINGS
   touchpadctl feel-default OUTPUT
   touchpadctl feel-check FILE
   touchpadctl feel-show FILE
@@ -1030,6 +1087,24 @@ COMMANDS:
                        Print the M16 foreground-only lifecycle/capability
                        preflight. The reported lifecycle remains Stopped; no
                        service is started or installed.
+  doctor SETTINGS      Read-only production readiness check: validate the
+                       unified settings file, require exactly one usable
+                       Type-B touchpad candidate, and verify session bus,
+                       RemoteDesktop portal and libei availability.
+  diagnostics OUTPUT.json
+                       Write a privacy-preserving static support bundle with
+                       platform/session metadata, touchpad identity,
+                       capabilities, selected quirks and probe evidence. It
+                       DOES NOT collect keyboard key codes or touch traces.
+  qualify OUTPUT.json  Generate a machine-specific real-hardware
+                       qualification checklist for pointer/tap/scroll/3FD,
+                       DWT, palm, suspend/resume, hotplug and cleanup.
+  service-run SETTINGS Persistent production runtime used by the packaged
+                       systemd user service. Reuses the same EVIOCGRAB,
+                       arbiter, portal/libei, DWT, settings hot-reload and
+                       ordered cleanup path as takeover, but has no artificial
+                       300-second deadline/countdown and records no unbounded
+                       raw touch trace by default.
   feel-default OUTPUT  Write the M16-equivalent M17 FeelConfig v1 defaults.
   feel-check FILE      Strictly validate one M17 FeelConfig.
   feel-show FILE       Print one validated FeelConfig as normalized JSON.
@@ -1068,8 +1143,10 @@ COMMANDS:
                        events through a PREPARED portal+libei streaming
                        session to the current KDE Wayland desktop, and record
                        the raw input to TRACE — all for at most
-                       --max-duration-seconds (1..=300). Foreground-only, no
-                       daemon/autostart/service. EXPERIMENTAL: the backend
+                       --max-duration-seconds (1..=300). This command remains
+                       the explicit developer/qualification path; normal
+                       installed use runs through service-run/systemd.
+                       EXPERIMENTAL: the backend
                        stays experimental/unqualified and M10 stays
                        live-unqualified until the user completes the 10/60/300
                        second acceptance sequence in doc/old/acceptance/M10_ACCEPTANCE.md.
@@ -2072,5 +2149,48 @@ mod tests {
         // The help text breaks lines between the fragments; assert each.
         assert!(text.contains("it is NOT"), "attestation honesty");
         assert!(text.contains("measurement evidence"), "attestation honesty");
+    }
+
+    #[test]
+    fn production_operations_have_narrow_zero_flag_contracts() {
+        assert!(matches!(
+            parse(&["doctor", "settings.json"]).unwrap(),
+            Command::Doctor { settings } if settings.as_path() == std::path::Path::new("settings.json")
+        ));
+        assert!(matches!(
+            parse(&["diagnostics", "diagnostics.json"]).unwrap(),
+            Command::Diagnostics { output } if output.as_path() == std::path::Path::new("diagnostics.json")
+        ));
+        assert!(matches!(
+            parse(&["qualify", "qualification.json"]).unwrap(),
+            Command::Qualify { output } if output.as_path() == std::path::Path::new("qualification.json")
+        ));
+        assert!(matches!(
+            parse(&["service-run", "settings.json"]).unwrap(),
+            Command::ServiceRun { settings } if settings.as_path() == std::path::Path::new("settings.json")
+        ));
+
+        for args in [
+            vec!["doctor", "settings.json", "--emit"],
+            vec!["diagnostics", "d.json", "--grab"],
+            vec!["qualify", "q.json", "--takeover"],
+            vec!["service-run", "settings.json", "--output-qualified"],
+        ] {
+            assert!(parse(&args).is_err(), "unexpectedly accepted {args:?}");
+        }
+    }
+
+    #[test]
+    fn help_exposes_production_install_and_support_commands() {
+        for needle in [
+            "doctor SETTINGS",
+            "diagnostics OUTPUT.json",
+            "qualify OUTPUT.json",
+            "service-run SETTINGS",
+            "systemd",
+            "no artificial",
+        ] {
+            assert!(HELP_TEXT.contains(needle), "missing {needle:?}");
+        }
     }
 }

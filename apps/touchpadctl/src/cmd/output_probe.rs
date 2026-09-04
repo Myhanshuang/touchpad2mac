@@ -361,7 +361,7 @@ mod tests {
     /// nothing that needs cleanup) — verified via the classification used by
     /// the binary entry point.
     #[test]
-    fn termination_handler_is_installed_only_for_emitting_and_record() {
+    fn termination_handler_is_installed_only_for_commands_with_live_resources() {
         use crate::Command;
         assert!(crate::command_needs_termination_handler(&Command::Record {
             device: "/dev/input/event0".into(),
@@ -370,6 +370,11 @@ mod tests {
         }));
         assert!(crate::command_needs_termination_handler(
             &Command::OutputProbe { emit: true }
+        ));
+        assert!(crate::command_needs_termination_handler(
+            &Command::ServiceRun {
+                settings: "settings.json".into(),
+            }
         ));
         assert!(!crate::command_needs_termination_handler(
             &Command::OutputProbe { emit: false }

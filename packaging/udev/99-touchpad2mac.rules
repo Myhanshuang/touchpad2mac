@@ -1,0 +1,8 @@
+# Access is scoped to the active local login session through logind's
+# `uaccess` tag. Do not grant world-readable/world-writable input devices.
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_TOUCHPAD}=="1", TAG+="uaccess"
+
+# Disable-while-typing opens paired internal keyboards read-only. The runtime
+# never grabs keyboard devices and immediately reduces qualifying key events
+# to anonymous monotonic timestamps.
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_KEYBOARD}=="1", TAG+="uaccess"

@@ -6,6 +6,7 @@ pub mod devices;
 pub mod feel;
 pub mod inspect;
 pub mod live_settings;
+pub mod operations;
 pub mod output_probe;
 pub mod record;
 pub mod replay;

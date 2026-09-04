@@ -1,0 +1,16 @@
+[package]
+name = "touchpad-testkit"
+description = "Linux uinput software-in-the-loop fixtures for touchpad2mac system tests."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+touchpad-core = { path = "../touchpad-core" }
+touchpad-linux = { path = "../touchpad-linux" }
+thiserror = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "=0.2.186"

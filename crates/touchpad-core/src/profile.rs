@@ -51,11 +51,14 @@ impl DeviceProfile {
     /// fabricate missing sensor capabilities.
     #[must_use]
     pub fn for_hardware(vendor_id: u16, product_id: u16) -> Self {
-        match (vendor_id, product_id) {
-            // CIRQ1080:00 0488:1054 Touchpad observed during M5 bring-up.
-            (0x0488, 0x1054) => Self::new("cirq1080-0488-1054").with_quirk(DeviceQuirk::Buttonpad),
-            _ => Self::new("default"),
-        }
+        Self::for_hardware_named("", vendor_id, product_id)
+    }
+
+    /// Known-hardware profile selection including the kernel device name.
+    /// Matching is driven by the versioned built-in quirk database.
+    #[must_use]
+    pub fn for_hardware_named(name: &str, vendor_id: u16, product_id: u16) -> Self {
+        crate::quirks::builtin_quirks().profile_for(name, vendor_id, product_id)
     }
 
     /// The explicit resolution override for an axis, if any.
@@ -132,7 +135,8 @@ mod tests {
 
     #[test]
     fn cirq1080_profile_contains_only_the_observed_buttonpad_quirk() {
-        let profile = DeviceProfile::for_hardware(0x0488, 0x1054);
+        let profile =
+            DeviceProfile::for_hardware_named("CIRQ1080:00 0488:1054 Touchpad", 0x0488, 0x1054);
         assert_eq!(profile.name, "cirq1080-0488-1054");
         assert_eq!(profile.quirks, vec![DeviceQuirk::Buttonpad]);
         assert!(profile.axis_resolutions.is_empty());
