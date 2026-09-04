@@ -12,3 +12,4 @@ pub mod record;
 pub mod replay;
 pub mod settings;
 pub mod takeover;
+pub mod windows;

@@ -100,6 +100,9 @@ pub fn run_command(env: &mut CommandEnv<'_>, command: &Command) -> Result<(), Co
             })?;
             Ok(())
         }
+        Command::WindowsCapture { output, seconds } => {
+            cmd::windows::run_capture(env, output, *seconds)
+        }
         Command::ConfigCheck { input } => cmd::config::run_check(env, input),
         Command::ServicePreflight { input } => cmd::config::run_preflight(env, input),
         Command::Doctor { settings } => cmd::operations::run_doctor(env, settings),

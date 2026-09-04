@@ -20,6 +20,14 @@ pub enum WindowsError {
     /// compatibility output path.
     #[error("Windows compatibility backend does not support {0}")]
     Unsupported(String),
+    /// A Precision Touchpad HID report or descriptor could not be decoded
+    /// into the platform-neutral contact model.
+    #[error("Windows Precision Touchpad decode failed: {0}")]
+    Decode(String),
+    /// The shared core interaction pipeline rejected input or synthetic
+    /// output while a Windows gesture-overlay session was active.
+    #[error("Windows gesture overlay failed: {0}")]
+    Pipeline(String),
 }
 
 impl WindowsError {

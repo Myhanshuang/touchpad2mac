@@ -38,7 +38,9 @@ Windows support currently provides a safe **user-mode overlay/probe layer**:
 
 - Precision Touchpads are identified by the HID Digitizers/Touch Pad top-level collection (`usage page 0x0D`, `usage 0x05`).
 - `touchpadctl windows-probe` enumerates visible PTP devices and reports Windows API availability without emitting input.
+- `touchpadctl windows-capture OUTPUT.jsonl SECONDS` performs a bounded, read-only Raw Input capture on Windows 10/11. It registers only the PTP top-level collection, never registers a keyboard, and never injects input; the resulting JSONL contains raw touchpad HID reports and may encode touch positions.
 - `touchpad-windows` contains a tested semantic output sink for relative pointer motion, buttons, and Win32 wheel data using `SendInput` on Windows.
+- Pure-Rust PTP hybrid-report assembly and three-finger overlay ownership are covered by tests while the hardware-specific HID descriptor decoder is being wired to real capture data.
 - New Windows 11 synthetic touchpad exports are detected dynamically, so older Windows builds fail closed rather than failing process startup.
 - **Full takeover is not claimed.** Windows Raw Input can observe HID data but does not provide a user-mode equivalent of `EVIOCGRAB` for Precision Touchpads. A signed HID/mouse-class filter driver is required before the physical touchpad can be suppressed without duplicate native input.
 
@@ -76,7 +78,12 @@ On Windows, the first bring-up command is:
 
 ```powershell
 target\release\touchpadctl.exe windows-probe
+target\release\touchpadctl.exe windows-capture ptp-capture.jsonl 30
 ```
+
+During the 30-second capture, exercise one-finger motion, two-finger scrolling,
+three-finger tap/drag, and a four-finger gesture. Native Windows touchpad
+behavior remains active throughout this diagnostic capture.
 
 For development, the standard quality gates are:
 
@@ -269,7 +276,9 @@ Windows Raw Input / HID device enumeration
     │
     ├── Precision Touchpad identity probe (0x0D / 0x05)
     │
-    └── future contact-report decoder / filter-driver takeover boundary
+    ├── bounded raw HID capture + hybrid-report/contact assembler
+    │
+    └── HID descriptor decoder / filter-driver takeover boundary
 
 touchpad-core semantic OutputEvent
     │

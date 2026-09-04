@@ -40,6 +40,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --all-targets --locked
       - run: cargo test -p touchpad-core -p touchpad-windows --locked
+      - run: cargo build --release -p touchpadctl --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: touchpadctl-windows-x86_64
+          path: target/release/touchpadctl.exe
+          if-no-files-found: error
 
   uinput-system:
     runs-on: ubuntu-latest

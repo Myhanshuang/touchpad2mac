@@ -10,12 +10,13 @@
 use std::ffi::{c_void, CString};
 use std::mem::size_of;
 use std::ptr::null_mut;
+use std::time::{Duration, Instant};
 
 use touchpad_core::MouseButton;
 
 use crate::{
-    WindowsError, WindowsOutputApi, WindowsTouchpadDevice, PRECISION_TOUCHPAD_USAGE,
-    PRECISION_TOUCHPAD_USAGE_PAGE,
+    WindowsCaptureSummary, WindowsError, WindowsOutputApi, WindowsRawHidReport,
+    WindowsTouchpadDevice, PRECISION_TOUCHPAD_USAGE, PRECISION_TOUCHPAD_USAGE_PAGE,
 };
 
 type Handle = *mut c_void;
@@ -40,6 +41,10 @@ const MOUSEEVENTF_WHEEL: u32 = 0x0800;
 const MOUSEEVENTF_HWHEEL: u32 = 0x1000;
 const XBUTTON1: u32 = 0x0001;
 const XBUTTON2: u32 = 0x0002;
+const RIDEV_INPUTSINK: u32 = 0x0000_0100;
+const RID_INPUT: u32 = 0x1000_0003;
+const WM_INPUT: u32 = 0x00ff;
+const PM_REMOVE: u32 = 0x0001;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -93,6 +98,64 @@ struct Input {
     data: InputUnion,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct RawInputDevice {
+    usage_page: u16,
+    usage: u16,
+    flags: u32,
+    target: Handle,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct RawInputHeaderLayout {
+    input_type: u32,
+    size: u32,
+    device: Handle,
+    w_param: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct RawHidPrefix {
+    size_hid: u32,
+    count: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct Message {
+    hwnd: Handle,
+    message: u32,
+    w_param: usize,
+    l_param: isize,
+    time: u32,
+    point: Point,
+    private: u32,
+}
+
+impl Default for Message {
+    fn default() -> Self {
+        Self {
+            hwnd: null_mut(),
+            message: 0,
+            w_param: 0,
+            l_param: 0,
+            time: 0,
+            point: Point::default(),
+            private: 0,
+        }
+    }
+}
+
 #[link(name = "user32")]
 unsafe extern "system" {
     fn GetRawInputDeviceList(
@@ -107,6 +170,38 @@ unsafe extern "system" {
         size: *mut u32,
     ) -> u32;
     fn SendInput(count: u32, inputs: *const Input, size: i32) -> u32;
+    fn CreateWindowExW(
+        ex_style: u32,
+        class_name: *const u16,
+        window_name: *const u16,
+        style: u32,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        parent: Handle,
+        menu: Handle,
+        instance: Handle,
+        param: *const c_void,
+    ) -> Handle;
+    fn DestroyWindow(window: Handle) -> i32;
+    fn RegisterRawInputDevices(devices: *const RawInputDevice, count: u32, size: u32) -> i32;
+    fn GetRawInputData(
+        raw_input: Handle,
+        command: u32,
+        data: *mut c_void,
+        size: *mut u32,
+        header_size: u32,
+    ) -> u32;
+    fn PeekMessageW(
+        message: *mut Message,
+        window: Handle,
+        min_message: u32,
+        max_message: u32,
+        remove: u32,
+    ) -> i32;
+    fn TranslateMessage(message: *const Message) -> i32;
+    fn DispatchMessageW(message: *const Message) -> isize;
 }
 
 #[link(name = "kernel32")]
@@ -257,6 +352,174 @@ pub(crate) fn synthetic_touchpad_exports_available() -> bool {
         // NUL-terminated for the duration of the call.
         !unsafe { GetProcAddress(module, name.as_ptr().cast()) }.is_null()
     })
+}
+
+pub(crate) fn capture_precision_touchpad_raw_input(
+    duration: Duration,
+    on_report: &mut dyn FnMut(WindowsRawHidReport) -> Result<(), WindowsError>,
+) -> Result<WindowsCaptureSummary, WindowsError> {
+    let class: Vec<u16> = "STATIC\0".encode_utf16().collect();
+    let message_only_parent = (-3isize) as Handle;
+    // SAFETY: `STATIC` is a built-in class. The window is message-only and
+    // never shown; all pointer arguments remain valid for this call.
+    let window = unsafe {
+        CreateWindowExW(
+            0,
+            class.as_ptr(),
+            null_mut(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            message_only_parent,
+            null_mut(),
+            null_mut(),
+            null_mut(),
+        )
+    };
+    if window.is_null() {
+        return Err(WindowsError::last_os_error("CreateWindowExW(message-only)"));
+    }
+
+    struct WindowGuard(Handle);
+    impl Drop for WindowGuard {
+        fn drop(&mut self) {
+            // SAFETY: handle was created in this scope and remains owned here.
+            unsafe {
+                let _ = DestroyWindow(self.0);
+            }
+        }
+    }
+    let _window_guard = WindowGuard(window);
+
+    let registration = RawInputDevice {
+        usage_page: PRECISION_TOUCHPAD_USAGE_PAGE,
+        usage: PRECISION_TOUCHPAD_USAGE,
+        flags: RIDEV_INPUTSINK,
+        target: window,
+    };
+    // SAFETY: one valid RAWINPUTDEVICE layout and a live target HWND.
+    let registered =
+        unsafe { RegisterRawInputDevices(&registration, 1, size_of::<RawInputDevice>() as u32) };
+    if registered == 0 {
+        return Err(WindowsError::last_os_error("RegisterRawInputDevices(PTP)"));
+    }
+
+    let deadline = Instant::now()
+        .checked_add(duration)
+        .ok_or_else(|| WindowsError::Unsupported("capture duration overflow".to_string()))?;
+    let mut summary = WindowsCaptureSummary::default();
+    while Instant::now() < deadline {
+        let mut saw_message = false;
+        loop {
+            let mut message = Message::default();
+            // SAFETY: message is writable and `window` remains alive.
+            let available = unsafe { PeekMessageW(&mut message, window, 0, 0, PM_REMOVE) };
+            if available == 0 {
+                break;
+            }
+            saw_message = true;
+            if message.message == WM_INPUT {
+                let reports = read_raw_hid(message.l_param as Handle)?;
+                if !reports.is_empty() {
+                    summary.raw_input_messages = summary.raw_input_messages.saturating_add(1);
+                }
+                for report in reports {
+                    summary.hid_reports = summary.hid_reports.saturating_add(1);
+                    summary.hid_bytes = summary.hid_bytes.saturating_add(report.bytes.len() as u64);
+                    on_report(report)?;
+                }
+            }
+            // Let the built-in window procedure perform normal message
+            // cleanup after we have copied the raw input payload.
+            unsafe {
+                let _ = TranslateMessage(&message);
+                let _ = DispatchMessageW(&message);
+            }
+        }
+        if !saw_message {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+    Ok(summary)
+}
+
+fn read_raw_hid(raw_input: Handle) -> Result<Vec<WindowsRawHidReport>, WindowsError> {
+    let header_size = size_of::<RawInputHeaderLayout>() as u32;
+    let mut bytes = 0u32;
+    // SAFETY: null data is the documented size-query form.
+    let query =
+        unsafe { GetRawInputData(raw_input, RID_INPUT, null_mut(), &mut bytes, header_size) };
+    if query == UINT_ERROR {
+        return Err(WindowsError::last_os_error("GetRawInputData(size)"));
+    }
+    if bytes < header_size + size_of::<RawHidPrefix>() as u32 {
+        return Err(WindowsError::Decode(format!(
+            "RAWINPUT payload is too small: {bytes} bytes"
+        )));
+    }
+
+    let mut buffer = vec![0u8; bytes as usize];
+    let mut writable = bytes;
+    // SAFETY: buffer has `writable` bytes and header_size matches the native
+    // RAWINPUTHEADER layout represented above.
+    let copied = unsafe {
+        GetRawInputData(
+            raw_input,
+            RID_INPUT,
+            buffer.as_mut_ptr().cast(),
+            &mut writable,
+            header_size,
+        )
+    };
+    if copied == UINT_ERROR {
+        return Err(WindowsError::last_os_error("GetRawInputData(data)"));
+    }
+    let minimum = size_of::<RawInputHeaderLayout>() + size_of::<RawHidPrefix>();
+    if (copied as usize) < minimum {
+        return Err(WindowsError::Decode(
+            "RAWINPUT copy was shorter than header + RAWHID prefix".to_string(),
+        ));
+    }
+
+    // SAFETY: fixed-prefix sizes are checked above; unaligned reads avoid any
+    // dependence on Vec<u8>'s alignment.
+    let header =
+        unsafe { std::ptr::read_unaligned(buffer.as_ptr().cast::<RawInputHeaderLayout>()) };
+    if header.input_type != RIM_TYPEHID {
+        return Ok(Vec::new());
+    }
+    let hid_offset = size_of::<RawInputHeaderLayout>();
+    let hid =
+        unsafe { std::ptr::read_unaligned(buffer.as_ptr().add(hid_offset).cast::<RawHidPrefix>()) };
+    if hid.size_hid == 0 || hid.count == 0 {
+        return Ok(Vec::new());
+    }
+    let report_size = hid.size_hid as usize;
+    let payload_len = report_size
+        .checked_mul(hid.count as usize)
+        .ok_or_else(|| WindowsError::Decode("RAWHID payload length overflow".to_string()))?;
+    let raw_offset = hid_offset + size_of::<RawHidPrefix>();
+    let end = raw_offset
+        .checked_add(payload_len)
+        .ok_or_else(|| WindowsError::Decode("RAWHID payload offset overflow".to_string()))?;
+    if end > copied as usize || end > buffer.len() {
+        return Err(WindowsError::Decode(format!(
+            "RAWHID advertises {payload_len} bytes beyond copied RAWINPUT payload"
+        )));
+    }
+
+    let mut reports = Vec::with_capacity(hid.count as usize);
+    for index in 0..hid.count {
+        let start = raw_offset + index as usize * report_size;
+        reports.push(WindowsRawHidReport {
+            device_handle: header.device as usize,
+            batch_index: index,
+            bytes: buffer[start..start + report_size].to_vec(),
+        });
+    }
+    Ok(reports)
 }
 
 impl WindowsOutputApi for Win32OutputApi {

@@ -19,13 +19,21 @@
 
 #![warn(missing_docs)]
 
+mod capture;
 mod device;
 mod error;
 mod output;
+#[cfg(test)] // pure/tested groundwork; live descriptor wiring follows raw-hardware capture
+mod overlay;
+#[cfg(test)] // pure/tested groundwork; live descriptor wiring follows raw-hardware capture
+mod ptp;
 mod support;
 #[cfg(target_os = "windows")]
 mod win32;
 
+pub use capture::{
+    capture_precision_touchpad_raw_input, WindowsCaptureSummary, WindowsRawHidReport,
+};
 pub use device::WindowsTouchpadDevice;
 pub use error::WindowsError;
 pub use output::{

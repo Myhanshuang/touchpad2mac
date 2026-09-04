@@ -41,6 +41,14 @@ pub enum Command {
     /// `windows-probe` — read-only Windows backend capability report. On
     /// non-Windows hosts it reports the platform limitation honestly.
     WindowsProbe,
+    /// `windows-capture OUTPUT.jsonl SECONDS` — bounded read-only Windows
+    /// Precision Touchpad Raw Input capture for hardware bring-up.
+    WindowsCapture {
+        /// Destination JSONL file containing raw HID reports.
+        output: PathBuf,
+        /// Capture duration in seconds (1..=300).
+        seconds: u32,
+    },
     /// `config-check FILE` — strict offline M16 runtime configuration
     /// validation/migration. Reads no device and starts no service.
     ConfigCheck {
@@ -311,6 +319,14 @@ pub enum UsageError {
         /// The value that was given.
         found: String,
     },
+    /// `windows-capture` duration was not an integer in `1..=300`.
+    #[error(
+        "Windows capture duration must be an integer in 1..=300 seconds, got {found:?} (try `touchpadctl --help`)"
+    )]
+    WindowsCaptureDurationInvalid {
+        /// The value that was given.
+        found: String,
+    },
     /// A takeover-only flag was repeated.
     #[error("flag {flag} may only be given once (try `touchpadctl --help`)")]
     DuplicateTakeoverFlag {
@@ -366,6 +382,12 @@ pub const MAX_TAKEOVER_SECONDS: u32 = 300;
 /// The minimum takeover duration in seconds.
 pub const MIN_TAKEOVER_SECONDS: u32 = 1;
 
+/// Maximum bounded Windows Raw Input capture duration.
+pub const MAX_WINDOWS_CAPTURE_SECONDS: u32 = 300;
+
+/// Minimum bounded Windows Raw Input capture duration.
+pub const MIN_WINDOWS_CAPTURE_SECONDS: u32 = 1;
+
 /// The takeover-only flags, rejected by every other command.
 const TAKEOVER_ONLY_FLAGS: &[&str] = &[
     "--takeover",
@@ -389,6 +411,7 @@ fn static_command_name(name: &str) -> Option<&'static str> {
         "replay" => Some("replay"),
         "output-probe" => Some("output-probe"),
         "windows-probe" => Some("windows-probe"),
+        "windows-capture" => Some("windows-capture"),
         "config-check" => Some("config-check"),
         "service-preflight" => Some("service-preflight"),
         "doctor" => Some("doctor"),
@@ -550,6 +573,24 @@ where
             check_arity("windows-probe", 0, &positional)?;
             reject_non_record_flags("windows-probe", &flags)?;
             Ok(Command::WindowsProbe)
+        }
+        "windows-capture" => {
+            check_arity("windows-capture", 2, &positional)?;
+            reject_non_record_flags("windows-capture", &flags)?;
+            let seconds = positional[1].parse::<u32>().map_err(|_| {
+                UsageError::WindowsCaptureDurationInvalid {
+                    found: positional[1].to_string(),
+                }
+            })?;
+            if !(MIN_WINDOWS_CAPTURE_SECONDS..=MAX_WINDOWS_CAPTURE_SECONDS).contains(&seconds) {
+                return Err(UsageError::WindowsCaptureDurationInvalid {
+                    found: positional[1].to_string(),
+                });
+            }
+            Ok(Command::WindowsCapture {
+                output: PathBuf::from(positional[0]),
+                seconds,
+            })
         }
         "config-check" => {
             check_arity("config-check", 1, &positional)?;
@@ -1022,6 +1063,7 @@ USAGE:
   touchpadctl replay INPUT
   touchpadctl output-probe [--emit]
   touchpadctl windows-probe
+  touchpadctl windows-capture OUTPUT.jsonl SECONDS
   touchpadctl config-check FILE
   touchpadctl service-preflight FILE
   touchpadctl doctor SETTINGS
@@ -1080,6 +1122,15 @@ COMMANDS:
                        synthetic-touchpad API availability, and explicitly
                        reports whether full physical-device takeover is
                        possible without a filter driver. Never emits input.
+  windows-capture OUTPUT.jsonl SECONDS
+                       Bounded Windows 10/11 hardware bring-up capture
+                       (1..=300 seconds). Registers only the Precision
+                       Touchpad Raw Input top-level collection (0x0D/0x05),
+                       creates no keyboard registration and emits no
+                       synthetic input. Windows keeps its normal native
+                       touchpad behavior. OUTPUT is JSON Lines containing
+                       raw HID reports and may encode touch positions; share
+                       it only when you intend to provide touchpad traces.
   config-check FILE    Strictly parse/validate an M16 runtime JSON file and
                        explicitly migrate v1 in memory. No device/output or
                        service side effect.
@@ -1507,6 +1558,31 @@ mod tests {
         ));
         assert!(HELP_TEXT.contains("windows-probe"));
         assert!(HELP_TEXT.contains("filter driver"));
+    }
+
+    #[test]
+    fn windows_capture_is_bounded_read_only_and_strictly_parsed() {
+        assert_eq!(
+            parse(&["windows-capture", "ptp.jsonl", "30"]).unwrap(),
+            Command::WindowsCapture {
+                output: PathBuf::from("ptp.jsonl"),
+                seconds: 30,
+            }
+        );
+        for bad in ["0", "301", "abc", "99999999999999999999"] {
+            assert!(matches!(
+                parse(&["windows-capture", "ptp.jsonl", bad]),
+                Err(UsageError::WindowsCaptureDurationInvalid { .. })
+            ));
+        }
+        assert!(parse(&["windows-capture", "ptp.jsonl", "-1"]).is_err());
+        assert!(matches!(
+            parse(&["windows-capture", "ptp.jsonl", "30", "--emit"]),
+            Err(UsageError::UnknownFlag(_))
+        ));
+        assert!(HELP_TEXT.contains("windows-capture OUTPUT.jsonl SECONDS"));
+        assert!(HELP_TEXT.contains("creates no keyboard registration and emits no"));
+        assert!(HELP_TEXT.contains("synthetic input"));
     }
 
     // ------------------------------------------------------------------
